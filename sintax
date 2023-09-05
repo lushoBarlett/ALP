@@ -1,0 +1,145 @@
+# Ejercicio 4:
+
+       (e, \sigma) \ArrowDown (n, \sigma')
+--------------------------------------------------
+(v = e, \sigma') \ArrowDown (n, [\sigma' | v : n])
+
+
+
+(e1, \sigma) \ArrowDown (n1, \sigma')	(e2, \sigma') \ArrowDown (n2, \sigma'')
+-------------------------------------------------------------------------------
+               ((e1,e2), \sigma) \ArrowDown (n2, \sigma'')
+
+# Ejercicio 5
+∀r->s,r->t. s = t
+
+Probamos por induccion sobre la derivacion
+
+- El ultimo paso fue ASS:
+
+     (e, σ) ⇓ (n', σ')
+-------------------------------
+(v = e, σ) -> (skip, [σ'|v:n'])
+
+sabemos
+(e, σ) ⇓ (n', σ') es valido, y que es determinista
+r = (v = e, σ)
+s = (skip, [σ'|v:n'])
+
+Sea r->t, t NO PUEDE ser resultado de aplicar otra regla
+en el ultimo paso aparte de la regla ASS, por la inclusion de '='
+
+     (e, σ) ⇓ (n'', σ'')
+-----------------------------
+(v = e, σ) -> (skip, [σ''|v:n''])
+
+t = (skip, [σ''|v:n''])
+
+PERO!
+
+Por el determinismo de ⇓ sabemos que:
+(n', σ') = (n'', σ'')
+
+Y esto significa que s = t
+
+Caso en el ultimo paso aplico SEQ1:
+
+---------------------------------
+(skip; c1, σ) -> (c1, σ)
+Sabemos que:
+r = (skip; c1, \sigma)
+s = (c1, sigma)
+
+sea r->t, el resultado no puede ser otro que el de la regla SEQ1 en el ultimo paso, por la inclusion de skip
+
+--------------------------------
+(skip; c1, \sigma) -> (c1, \sigma)
+
+Trivialmente s = t
+
+Caso en el ultimo paso aplico REPEAT:
+
+---------------------------------------------------------------------
+<repeat c until b, σ > -> <c;if b then skip else repeat c until b, σ>
+
+Sabemos que:
+r = <repeat c until b, \sigma>
+s = <c; if b then skip else repeat b until c, \sigma>
+
+sea r->t, el resultado no puede ser otro que el de la regla REPEAT en el ultimo paso, por la inclusion de repeat
+Trivialmente s = t
+
+# Ejercicio 9
+
+        (comm1, \sigma) \squiggle (erri, \sigma')
+------------------------------------------------------------
+(catchin comm1 with comm2, \sigma) \squiggle (comm2, \sigma)
+
+
+        (comm1, \sigma) \squiggle (skip, \sigma')
+------------------------------------------------------------
+(catchin comm1 with comm2, \sigma) \squiggle (skip, \sigma')
+
+
+                   (comm1, \sigma) \squiggle (comm1', \sigma')
+--------------------------------------------------------------------------------
+(catchin comm1 with comm2, \sigma) \squiggle (catchin comm1' with comm2, \sigma')
+
+
+# Ejercicio 1
+-- AST --
+intexp ::= nat | var | − intexp
+| intexp + intexp
+| intexp − intexp
+| intexp × intexp
+| intexp ÷ intexp
+| var = intexp
+| intexp, intexp
+
+boolexp ::= true | false
+| intexp == intexp
+| intexp != intexp
+| intexp < intexp
+| intexp > intexp
+| boolexp ∧ boolexp
+| boolexp ∨ boolexp
+| ¬ boolexp
+
+comm ::= skip
+| var = intexp
+| comm; comm
+| if boolexp then comm else comm
+| repeat comm until boolexp
+
+-- CST --
+digit ::= ’0’ | ’1’ | · · · | ’9’
+letter ::= ’a’ | · · · | ’Z’
+nat ::= digit | digit nat
+var ::= letter | letter var
+intexp ::= nat
+| var
+| var ’=’ intexp
+| ’-’ intexp
+| intexp ’+’ intexp
+| intexp ’-’ intexp
+| intexp ’*’ intexp
+| intexp ’/’ intexp
+| ’(’ intexp ’)’
+| intexp ’,’ intexp
+
+boolexp ::= ’true’ | ’false’
+| intexp ’==’ intexp
+| intexp ’!=’ intexp
+| intexp ’<’ intexp
+| intexp ’>’ intexp
+| boolexp ’&&’ boolexp
+| boolexp ’||’ boolexp
+| ’!’ boolexp
+| ’(’ boolexp ’)’
+
+comm ::= skip
+| var ’=’ intexp
+| comm ’;’ comm
+| ’if’ boolexp ’{’ comm ’}’
+| ’if’ boolexp ’{’ comm ’}’ ’else’ ’{’ comm ’}’
+| ’repeat’ comm ’until’ boolexp ’end’
