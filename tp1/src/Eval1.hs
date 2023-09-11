@@ -42,22 +42,22 @@ stepCommStar c    s = Data.Strict.Tuple.uncurry stepCommStar $ stepComm c s
 -- Completar la definición
 stepComm :: Comm -> State -> Pair Comm State
 
-stepComm Skip s = Pair Skip s
+stepComm Skip s = Skip :!: s
 
 stepComm (Let v e) s =
-  let Pair n s' = evalExp e s
-   in Pair Skip (update v n s')
+  let n :!: s' = evalExp e s
+   in Skip :!: (update v n s')
 
-stepComm (Seq Skip c2) s = Pair c2 s
+stepComm (Seq Skip c2) s = c2 :!: s
 stepComm (Seq c1 c2) s =
-  let Pair c1' s' = stepComm c1 s
-   in Pair (Seq c1' c2) s'
+  let c1' :!: s' = stepComm c1 s
+   in (Seq c1' c2) :!: s'
 
 stepComm (IfThenElse bexp c1 c2) s =
-  let Pair b s' = evalExp bexp s
-   in if b then Pair c1 s' else Pair c2 s'
+  let b :!: s' = evalExp bexp s
+   in if b then c1 :!: s' else c2 :!: s'
 
-stepComm (Repeat c bexp) s = Pair newcomm s
+stepComm (Repeat c bexp) s = newcomm :!: s
   where
     newcomm = (Seq c (IfThenElse bexp Skip repeat))
     repeat = Repeat c bexp
@@ -66,35 +66,35 @@ stepComm (Repeat c bexp) s = Pair newcomm s
 -- Completar la definición
 evalUnOp :: (a -> b) -> Exp a -> State -> Pair b State
 evalUnOp op e s =
-  let Pair n s' = evalExp e s
-   in Pair (op n) s'
+  let n :!: s' = evalExp e s
+   in (op n) :!: s'
 
 evalBinOp :: (a -> b -> c) -> Exp a -> Exp b -> State -> Pair c State
 evalBinOp op e1 e2 s =
-  let Pair n1 s' = evalExp e1 s
-      Pair n2 s'' = evalExp e2 s'
-   in Pair (op n1 n2) s''
+  let n1 :!: s' = evalExp e1 s
+      n2 :!: s'' = evalExp e2 s'
+   in (op n1 n2) :!: s''
 
 evalExp :: Exp a -> State -> Pair a State
 -- enteras
-evalExp (Const n) s     = Pair n s
-evalExp (Var v) s       = Pair (lookfor v s) s
+evalExp (Const n) s     = n :!: s
+evalExp (Var v) s       = (lookfor v s) :!: s
 evalExp (UMinus e) s    = evalUnOp negate e s
 evalExp (Plus e1 e2) s  = evalBinOp (+) e1 e2 s
 evalExp (Minus e1 e2) s = evalBinOp (-) e1 e2 s
 evalExp (Times e1 e2) s = evalBinOp (*) e1 e2 s
 evalExp (Div e1 e2) s   = evalBinOp div e1 e2 s
 evalExp (EAssgn v e) s  =
-  let Pair n s' = evalExp e s
-            s'' = update v n s'
-   in Pair n s''
+  let n :!: s' = evalExp e s
+      s'' = update v n s'
+   in n :!: s''
 evalExp (ESeq e1 e2) s  =
-  let Pair _ s'  = evalExp e1 s
-      Pair n s'' = evalExp e2 s'
-   in Pair n s''
+  let _ :!: s'  = evalExp e1 s
+      n :!: s'' = evalExp e2 s'
+   in n :!: s''
 -- booleanas
-evalExp BTrue s       = Pair True s
-evalExp BFalse s      = Pair False s
+evalExp BTrue s       = True :!: s
+evalExp BFalse s      = False :!: s
 evalExp (Lt e1 e2) s  = evalBinOp (<) e1 e2 s
 evalExp (Gt e1 e2) s  = evalBinOp (>) e1 e2 s
 evalExp (And e1 e2) s = evalBinOp (&&) e1 e2 s

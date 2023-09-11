@@ -60,11 +60,11 @@ boolBinOp opstring op = do
 intexp :: Parser (Exp Int)
 intexp = pint <|> pvar <|> opposite <|> parenthesis <|> plus <|> minus <|> times <|> div <|> assgn <|> seq
   where
-    pint = Const <$> int
-    pvar = Var <$> identifier
+    pint = Const . fromInteger <$> integer lis
+    pvar = Var <$> identifier lis
     parenthesis = parens lis intexp
 
-    opposite = reservedOp lis "-" >> Neg <$> intexp
+    opposite = reservedOp lis "-" >> UMinus <$> intexp
 
     plus = intBinOp "+" Plus
     minus = intBinOp "-" Minus
@@ -72,7 +72,7 @@ intexp = pint <|> pvar <|> opposite <|> parenthesis <|> plus <|> minus <|> times
     div = intBinOp "/" Div
 
     assgn = do
-      v <- identifier
+      v <- identifier lis
       reservedOp lis "="
       e <- intexp
       return $ EAssgn v e
@@ -104,12 +104,12 @@ boolexp = ptrue <|> pfalse <|> negation <|> parenthesis <|> lt <|> gt <|> eq <|>
 -----------------------------------
 
 comm :: Parser Comm
-comm = pskip <|> passign <|> pif <|> prepeat <|> pseq <|> pwhile
+comm = pseq <|> pskip <|> passign <|> pif <|> prepeat
   where
     pskip = reserved lis "skip" >> return Skip
 
     passign = do
-      v <- identifier
+      v <- identifier lis
       reservedOp lis "="
       e <- intexp
       return $ Let v e
@@ -123,7 +123,7 @@ comm = pskip <|> passign <|> pif <|> prepeat <|> pseq <|> pwhile
     pif = do
       reserved lis "if"
       b <- boolexp
-      c <- braces comm
+      c <- braces lis comm
       -- Don't allow "if else" to be parsed
       -- as "if" followed by "else"
       notFollowedBy $ reserved lis "else"
@@ -132,14 +132,14 @@ comm = pskip <|> passign <|> pif <|> prepeat <|> pseq <|> pwhile
     pifelse = do
       reserved lis "if"
       b <- boolexp
-      c1 <- braces comm
+      c1 <- braces lis comm
       reserved lis "else"
-      c2 <- braces comm
+      c2 <- braces lis comm
       return $ IfThenElse b c1 c2
 
     prepeat = do
       reserved lis "repeat"
-      c <- braces comm
+      c <- braces lis comm
       reserved lis "until"
       b <- boolexp
       return $ Repeat c b
