@@ -43,23 +43,29 @@ lis = makeTokenParser
 
 -- Santa's little helper function
 intBinOp opstring op = do
-  e1 <- intexp
   reservedOp lis opstring
   e2 <- intexp
-  return $ op e1 e2
+  return $ \e1 -> op e1 e2
 
 boolBinOp opstring op = do
-  e1 <- boolexp
   reservedOp lis opstring
   e2 <- boolexp
-  return $ op e1 e2
+  return $ \e1 -> op e1 e2
 
 ----------------------------------
 --- Parser de expressiones enteras
 -----------------------------------
 intexp :: Parser (Exp Int)
-intexp = pint <|> pvar <|> opposite <|> parenthesis <|> plus <|> minus <|> times <|> div <|> assgn <|> seq
+intexp = do
+  e <- atom
+  case e of
+    Var v -> (do f <- assgn; return $ f v) <|> (applyBins e) <|> (return e)
+    _ -> (applyBins e) <|> (return e)
   where
+    applyBins e = do f <- bins; return $ f e
+    atom = pint <|> pvar <|> parenthesis <|> opposite
+    bins = plus <|> minus <|> times <|> div <|> seq
+
     pint = Const . fromInteger <$> integer lis
     pvar = Var <$> identifier lis
     parenthesis = parens lis intexp
@@ -72,10 +78,9 @@ intexp = pint <|> pvar <|> opposite <|> parenthesis <|> plus <|> minus <|> times
     div = intBinOp "/" Div
 
     assgn = do
-      v <- identifier lis
       reservedOp lis "="
       e <- intexp
-      return $ EAssgn v e
+      return $ \v -> EAssgn v e
 
     seq = intBinOp "," ESeq
 
@@ -84,8 +89,18 @@ intexp = pint <|> pvar <|> opposite <|> parenthesis <|> plus <|> minus <|> times
 ------------------------------------
 
 boolexp :: Parser (Exp Bool)
-boolexp = ptrue <|> pfalse <|> negation <|> parenthesis <|> lt <|> gt <|> eq <|> neq <|> and <|> or
+boolexp =
+  (do e <- atom
+      (do f <- boolBins; return $ f e) <|> return e)
+  <|>
+  (do i <- intexp
+      f <- intBins
+      return $ f i)
   where
+    atom = ptrue <|> pfalse <|> parenthesis <|> negation
+    intBins = lt <|> gt <|> eq <|> neq
+    boolBins = and <|> or
+
     ptrue  = reserved lis "true" >> return BTrue
     pfalse = reserved lis "false" >> return BFalse
     negation = reservedOp lis "!" >> Not <$> boolexp
@@ -104,8 +119,12 @@ boolexp = ptrue <|> pfalse <|> negation <|> parenthesis <|> lt <|> gt <|> eq <|>
 -----------------------------------
 
 comm :: Parser Comm
-comm = pseq <|> pskip <|> passign <|> pif <|> prepeat
+comm = do
+  l <- line
+  (do f <- pseq; return $ f l) <|> return l
   where
+    line = pskip <|> passign <|> pifelse <|> prepeat
+
     pskip = reserved lis "skip" >> return Skip
 
     passign = do
@@ -114,28 +133,16 @@ comm = pseq <|> pskip <|> passign <|> pif <|> prepeat
       e <- intexp
       return $ Let v e
 
-    pseq = do
-      c1 <- comm
-      reservedOp lis ";"
-      c2 <- comm
-      return $ Seq c1 c2
-
-    pif = do
-      reserved lis "if"
-      b <- boolexp
-      c <- braces lis comm
-      -- Don't allow "if else" to be parsed
-      -- as "if" followed by "else"
-      notFollowedBy $ reserved lis "else"
-      return $ IfThen b c
-
     pifelse = do
       reserved lis "if"
       b <- boolexp
-      c1 <- braces lis comm
+      c <- braces lis comm
+      (do f <- pelse; return $ f b c) <|> (return $ IfThen b c)
+
+    pelse = do
       reserved lis "else"
       c2 <- braces lis comm
-      return $ IfThenElse b c1 c2
+      return $ \b -> (\c1 -> IfThenElse b c1 c2)
 
     prepeat = do
       reserved lis "repeat"
@@ -143,6 +150,11 @@ comm = pseq <|> pskip <|> passign <|> pif <|> prepeat
       reserved lis "until"
       b <- boolexp
       return $ Repeat c b
+
+    pseq = do
+      reservedOp lis ";"
+      c <- comm
+      return $ \c1 -> Seq c1 c
 
 ------------------------------------
 -- Función de parseo
