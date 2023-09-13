@@ -57,7 +57,9 @@ stepComm Skip s = return $ Skip :!: s
 
 stepComm (Let v e) s = do
   n :!: s' <- evalExp e s
-  return $ Skip :!: (let (m, t) = s' in (M.insert v n m, t))
+  let (m, t) = s'
+      t' = "Let " ++ v ++ " " ++ show n ++ "\n"
+   in return $ Skip :!: (M.insert v n m, t ++ t')
 
 stepComm (Seq Skip c2) s = return $ c2 :!: s
 stepComm (Seq c1 c2) s = do
