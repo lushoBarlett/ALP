@@ -48,17 +48,21 @@ lis = makeTokenParser
 {-
  - try en assgn es utilizado por el caso donde
  - el parser confunda una variable en una expresión cualquiera
- - con una asignación. Queremos que no consuma la variable
+ - con una asignación. Queremos que no consuma la variable.
+ -
+ - Es importante notar que no puede haber otra asignación luego de que
+ - ya estemos parseando una, pero tampoco queremos parsear otra ',',
+ - porque esto se saltearía las reglas de precedencia.
+ - Por lo tanto lo que sigue es un parser `expr`.
  -}
 intexp :: Parser (Exp Int)
 intexp = seq
   where
     seq = do a <- try assgn <|> expr
-             (reservedOp lis "," >> ESeq a <$> intexp)
+             (reservedOp lis "," >> ESeq a <$> seq)
               <|> return a
-    atom = pint <|> pvar <|> parenthesis <|> opposite
     assgn = do a@(Var v) <- pvar
-               reservedOp lis "=" >> EAssgn v <$> intexp
+               reservedOp lis "=" >> EAssgn v <$> expr
     expr = do a <- factor
               (reservedOp lis "+" >> Plus a <$> expr)
                <|> (reservedOp lis "-" >> Minus a <$> expr)
@@ -67,6 +71,7 @@ intexp = seq
                 (reservedOp lis "*" >> Times a <$> factor)
                  <|> (reservedOp lis "/" >> Div a <$> factor)
                  <|> return a
+    atom = pint <|> pvar <|> parenthesis <|> opposite
     pint = Const . fromInteger <$> integer lis
     pvar = Var <$> identifier lis
     parenthesis = parens lis intexp
