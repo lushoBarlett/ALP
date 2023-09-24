@@ -80,8 +80,16 @@ evalExp (Const n) s     = n :!: s
 evalExp (Var v) s       = lookfor v s :!: s
 evalExp (UMinus e) s    = evalUnOp negate e s
 evalExp (Plus e1 e2) s  = evalBinOp (+) e1 e2 s
+-- arregla la asociatividad de la operación
+evalExp (Minus e1 (Minus e2 e3)) s =
+  let n :!: s' = evalBinOp (-) e1 e2 s
+   in evalExp (Minus (Const n) e3) s'
 evalExp (Minus e1 e2) s = evalBinOp (-) e1 e2 s
 evalExp (Times e1 e2) s = evalBinOp (*) e1 e2 s
+-- arregla la asociatividad de la operación
+evalExp (Div e1 (Div e2 e3)) s =
+  let n :!: s' = evalBinOp div e1 e2 s
+   in evalExp (Div (Const n) e3) s'
 evalExp (Div e1 e2) s   = evalBinOp div e1 e2 s
 evalExp (EAssgn v e) s  =
   let n :!: s' = evalExp e s

@@ -98,8 +98,16 @@ evalExp (Var v) s       = do
   return $ n :!: s
 evalExp (UMinus e) s    = evalUnOp negate e s
 evalExp (Plus e1 e2) s  = evalBinOp (+) e1 e2 s
+-- arregla la asociatividad de la operación
+evalExp (Minus e1 (Minus e2 e3)) s = do
+  n :!: s' <- evalBinOp (-) e1 e2 s
+  evalExp (Minus (Const n) e3) s'
 evalExp (Minus e1 e2) s = evalBinOp (-) e1 e2 s
 evalExp (Times e1 e2) s = evalBinOp (*) e1 e2 s
+-- arregla la asociatividad de la operación
+evalExp (Div e1 (Div e2 e3)) s = do
+  n :!: s' <- evalBinOp div e1 e2 s
+  evalExp (Div (Const n) e3) s'
 evalExp (Div e1 e2) s   = do
   n2 :!: s' <- evalExp e2 s
   if n2 == 0
