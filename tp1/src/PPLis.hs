@@ -13,24 +13,24 @@ pVar :: Variable -> Doc
 pVar = text
 
 pExp :: Exp a -> Doc
-pExp (Const  i )  = text "(" <> int i <> text ")"
-pExp (Var    x )  = text "(" <> pVar x <> text ")"
-pExp (UMinus n )  = text "(" <> text "-" <+> pExp n <> text ")"
-pExp (Plus  a b)  = text "(" <> pExp a <+> text "+" <+> pExp b <> text ")"
-pExp (Times a b)  = text "(" <> pExp a <+> text "*" <+> pExp b <> text ")"
-pExp (Minus a b)  = text "(" <> pExp a <+> text "-" <+> pExp b <> text ")"
-pExp (Div   a b)  = text "(" <> pExp a <+> text "/" <+> pExp b <> text ")"
-pExp BTrue        = text "(" <> text "true" <> text ")"
-pExp BFalse       = text "(" <> text "false" <> text ")"
-pExp (Eq  a b)    = text "(" <> pExp a <+> text "==" <+> pExp b <> text ")"
-pExp (NEq a b)    = text "(" <> pExp a <+> text "!=" <+> pExp b <> text ")"
-pExp (Lt  a b)    = text "(" <> pExp a <+> text "<" <+> pExp b <> text ")"
-pExp (Gt  a b)    = text "(" <> pExp a <+> text ">" <+> pExp b <> text ")"
-pExp (And a b)    = text "(" <> pExp a <+> text "&&" <+> pExp b <> text ")"
-pExp (Or  a b)    = text "(" <> pExp a <+> text "||" <+> pExp b <> text ")"
-pExp (Not b  )    = text "(" <> text "!" <+> pExp b <> text ")"
-pExp (EAssgn x e) = text "(" <> pVar x <+> text "=" <+> pExp e <> text ")"
-pExp (ESeq a b)   = text "(" <> pExp a <> text "," <+> pExp b <> text ")"
+pExp (Const  i )  = int i
+pExp (Var    x )  = pVar x
+pExp (UMinus n )  = text "-" <+> pExp n
+pExp (Plus  a b)  = pExp a <+> text "+" <+> pExp b
+pExp (Times a b)  = pExp a <+> text "*" <+> pExp b
+pExp (Minus a b)  = pExp a <+> text "-" <+> pExp b
+pExp (Div   a b)  = pExp a <+> text "/" <+> pExp b
+pExp BTrue        = text "true"
+pExp BFalse       = text "false"
+pExp (Eq  a b)    = pExp a <+> text "==" <+> pExp b
+pExp (NEq a b)    = pExp a <+> text "!=" <+> pExp b
+pExp (Lt  a b)    = pExp a <+> text "<" <+> pExp b
+pExp (Gt  a b)    = pExp a <+> text ">" <+> pExp b
+pExp (And a b)    = pExp a <+> text "&&" <+> pExp b
+pExp (Or  a b)    = pExp a <+> text "||" <+> pExp b
+pExp (Not b  )    = text "!" <+> pExp b
+pExp (EAssgn x e) = pVar x <+> text "=" <+> pExp e
+pExp (ESeq a b)   = pExp a <> text "," <+> pExp b
 pExp _ =
   error
     "Tipo de expresión no reconocido por el Pretty Printer."
