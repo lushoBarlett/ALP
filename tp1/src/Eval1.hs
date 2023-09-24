@@ -7,6 +7,7 @@ where
 import           AST
 import qualified Data.Map.Strict               as M
 import           Data.Strict.Tuple
+import qualified Data.Maybe                    as Maybe
 
 -- Estados
 type State = M.Map Variable Int
@@ -19,9 +20,7 @@ initState = M.empty
 -- Busca el valor de una variable en un estado
 -- Completar la definición
 lookfor :: Variable -> State -> Int
-lookfor v s = case M.lookup v s of
-  Just x  -> x
-  Nothing -> undefined
+lookfor v s = Maybe.fromMaybe undefined (M.lookup v s)
 
 -- Cambia el valor de una variable en un estado
 -- Completar la definición
@@ -46,12 +45,12 @@ stepComm Skip s = Skip :!: s
 
 stepComm (Let v e) s =
   let n :!: s' = evalExp e s
-   in Skip :!: (update v n s')
+   in Skip :!: update v n s'
 
 stepComm (Seq Skip c2) s = c2 :!: s
 stepComm (Seq c1 c2) s =
   let c1' :!: s' = stepComm c1 s
-   in (Seq c1' c2) :!: s'
+   in Seq c1' c2 :!: s'
 
 stepComm (IfThenElse bexp c1 c2) s =
   let b :!: s' = evalExp bexp s
@@ -59,7 +58,7 @@ stepComm (IfThenElse bexp c1 c2) s =
 
 stepComm (Repeat c bexp) s = newcomm :!: s
   where
-    newcomm = (Seq c (IfThenElse bexp Skip repeat))
+    newcomm = Seq c (IfThenElse bexp Skip repeat)
     repeat = Repeat c bexp
 
 -- Evalua una expresion
@@ -67,18 +66,18 @@ stepComm (Repeat c bexp) s = newcomm :!: s
 evalUnOp :: (a -> b) -> Exp a -> State -> Pair b State
 evalUnOp op e s =
   let n :!: s' = evalExp e s
-   in (op n) :!: s'
+   in op n :!: s'
 
 evalBinOp :: (a -> b -> c) -> Exp a -> Exp b -> State -> Pair c State
 evalBinOp op e1 e2 s =
   let n1 :!: s' = evalExp e1 s
       n2 :!: s'' = evalExp e2 s'
-   in (op n1 n2) :!: s''
+   in op n1 n2 :!: s''
 
 evalExp :: Exp a -> State -> Pair a State
 -- enteras
 evalExp (Const n) s     = n :!: s
-evalExp (Var v) s       = (lookfor v s) :!: s
+evalExp (Var v) s       = lookfor v s :!: s
 evalExp (UMinus e) s    = evalUnOp negate e s
 evalExp (Plus e1 e2) s  = evalBinOp (+) e1 e2 s
 evalExp (Minus e1 e2) s = evalBinOp (-) e1 e2 s

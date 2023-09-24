@@ -48,12 +48,12 @@ stepComm Skip s = return $ Skip :!: s
 
 stepComm (Let v e) s = do
   n :!: s' <- evalExp e s
-  return $ Skip :!: (update v n s')
+  return $ Skip :!: update v n s'
 
 stepComm (Seq Skip c2) s = return $ c2 :!: s
 stepComm (Seq c1 c2) s = do
   c1' :!: s' <- stepComm c1 s
-  return $ (Seq c1' c2) :!: s'
+  return $ Seq c1' c2 :!: s'
 
 stepComm (IfThenElse bexp c1 c2) s = do
   b :!: s' <- evalExp bexp s
@@ -61,7 +61,7 @@ stepComm (IfThenElse bexp c1 c2) s = do
 
 stepComm (Repeat c bexp) s = return $ newcomm :!: s
   where
-    newcomm = (Seq c (IfThenElse bexp Skip repeat))
+    newcomm = Seq c (IfThenElse bexp Skip repeat)
     repeat = Repeat c bexp
 
 -- Evalua una expresion
@@ -69,13 +69,13 @@ stepComm (Repeat c bexp) s = return $ newcomm :!: s
 evalUnOp :: (a -> b) -> Exp a -> State -> Either Error (Pair b State)
 evalUnOp op e s = do
   n :!: s' <- evalExp e s
-  return $ (op n) :!: s'
+  return $ op n :!: s'
 
 evalBinOp :: (a -> b -> c) -> Exp a -> Exp b -> State -> Either Error (Pair c State)
 evalBinOp op e1 e2 s = do
   n1 :!: s' <- evalExp e1 s
   n2 :!: s'' <- evalExp e2 s'
-  return $ (op n1 n2) :!: s''
+  return $ op n1 n2 :!: s''
 
 evalExp :: Exp a -> State -> Either Error (Pair a State)
 -- enteras
