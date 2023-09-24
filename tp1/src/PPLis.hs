@@ -13,25 +13,27 @@ pVar :: Variable -> Doc
 pVar = text
 
 pExp :: Exp a -> Doc
-pExp (Const  i ) = int i
-pExp (Var    x ) = pVar x
-pExp (UMinus n ) = text "-" <+> pExp n
-pExp (Plus  a b) = pExp a <+> text "+" <+> pExp b
-pExp (Times a b) = pExp a <+> text "*" <+> pExp b
-pExp (Minus a b) = pExp a <+> text "-" <+> pExp b
-pExp (Div   a b) = pExp a <+> text "/" <+> pExp b
-pExp BTrue       = text "true"
-pExp BFalse      = text "false"
-pExp (Eq  a b)   = pExp a <+> text "==" <+> pExp b
-pExp (NEq a b)   = pExp a <+> text "!=" <+> pExp b
-pExp (Lt  a b)   = pExp a <+> text "<" <+> pExp b
-pExp (Gt  a b)   = pExp a <+> text ">" <+> pExp b
-pExp (And a b)   = pExp a <+> text "&&" <+> pExp b
-pExp (Or  a b)   = pExp a <+> text "||" <+> pExp b
-pExp (Not b  )   = text "!" <+> pExp b
+pExp (Const  i )  = int i
+pExp (Var    x )  = pVar x
+pExp (UMinus n )  = text "-" <+> pExp n
+pExp (Plus  a b)  = pExp a <+> text "+" <+> pExp b
+pExp (Times a b)  = pExp a <+> text "*" <+> pExp b
+pExp (Minus a b)  = pExp a <+> text "-" <+> pExp b
+pExp (Div   a b)  = pExp a <+> text "/" <+> pExp b
+pExp BTrue        = text "true"
+pExp BFalse       = text "false"
+pExp (Eq  a b)    = pExp a <+> text "==" <+> pExp b
+pExp (NEq a b)    = pExp a <+> text "!=" <+> pExp b
+pExp (Lt  a b)    = pExp a <+> text "<" <+> pExp b
+pExp (Gt  a b)    = pExp a <+> text ">" <+> pExp b
+pExp (And a b)    = pExp a <+> text "&&" <+> pExp b
+pExp (Or  a b)    = pExp a <+> text "||" <+> pExp b
+pExp (Not b  )    = text "!" <+> pExp b
+pExp (EAssgn x e) = pVar x <+> text "=" <+> pExp e
+pExp (ESeq a b)   = pExp a <> text "," <+> pExp b
 pExp _ =
   error
-    "El Pretty Printer no está implementado para las extensiones del Ejercicio 2."
+    "Tipo de expresión no reconocido por el Pretty Printer."
 
 pComm :: Comm -> Doc
 pComm Skip        = text "skip"

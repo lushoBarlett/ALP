@@ -41,78 +41,69 @@ lis = makeTokenParser
     }
   )
 
--- Santa's little helper function
-intBinOp opstring op = do
-  reservedOp lis opstring
-  e2 <- intexp
-  return $ \e1 -> op e1 e2
-
-boolBinOp opstring op = do
-  reservedOp lis opstring
-  e2 <- boolexp
-  return $ \e1 -> op e1 e2
-
 ----------------------------------
 --- Parser de expressiones enteras
 -----------------------------------
-intexp :: Parser (Exp Int)
-intexp = do
-  e <- atom
-  case e of
-    Var v -> (do f <- assgn; return $ f v) <|> (applyBins e) <|> (return e)
-    _ -> (applyBins e) <|> (return e)
-  where
-    applyBins e = do f <- bins; return $ f e
-    atom = pint <|> pvar <|> parenthesis <|> opposite
-    bins = plus <|> minus <|> times <|> div <|> seq
 
+{-
+ - try en assgn es utilizado por el caso donde
+ - el parser confunda una variable en una expresión cualquiera
+ - con una asignación. Queremos que no consuma la variable
+ -}
+intexp :: Parser (Exp Int)
+intexp = seq
+  where
+    seq = do a <- try assgn <|> expr
+             (reservedOp lis "," >> ESeq a <$> intexp)
+              <|> return a
+    atom = pint <|> pvar <|> parenthesis <|> opposite
+    assgn = do a@(Var v) <- pvar
+               reservedOp lis "=" >> EAssgn v <$> intexp
+    expr = do a <- factor
+              (reservedOp lis "+" >> Plus a <$> expr)
+               <|> (reservedOp lis "-" >> Minus a <$> expr)
+               <|> return a
+    factor = do a <- atom
+                (reservedOp lis "*" >> Times a <$> factor)
+                 <|> (reservedOp lis "/" >> Div a <$> factor)
+                 <|> return a
     pint = Const . fromInteger <$> integer lis
     pvar = Var <$> identifier lis
     parenthesis = parens lis intexp
-
     opposite = reservedOp lis "-" >> UMinus <$> intexp
 
-    plus = intBinOp "+" Plus
-    minus = intBinOp "-" Minus
-    times = intBinOp "*" Times
-    div = intBinOp "/" Div
-
-    assgn = do
-      reservedOp lis "="
-      e <- intexp
-      return $ \v -> EAssgn v e
-
-    seq = intBinOp "," ESeq
 
 -----------------------------------
 --- Parser de expressiones booleanas
 ------------------------------------
 
+{-
+ - try en parentesis es utilizado porque los parentesis pueden pertenecer
+ - a diferentes expresiones, o sea, los parentesis estan tipados.
+ - Por ejemplo:
+ - (x + 1) < (x + 2) vs (x + 1 < x + 2)
+ - Esto significa que los paréntesis que nos encontremos
+ - pueden corresponder en realidad a una expresión entera.
+ -}
 boolexp :: Parser (Exp Bool)
-boolexp =
-  (do e <- atom
-      (do f <- boolBins; return $ f e) <|> return e)
-  <|>
-  (do i <- intexp
-      f <- intBins
-      return $ f i)
+boolexp = or
   where
-    atom = ptrue <|> pfalse <|> parenthesis <|> negation
-    intBins = lt <|> gt <|> eq <|> neq
-    boolBins = and <|> or
-
+    or = do  a <- and
+             (reservedOp lis "||" >> Or a <$> or)
+              <|> return a
+    and = do a <- atom <|> not <|> comparison
+             (reservedOp lis "&&" >> And a <$> and)
+              <|> return a
+    atom = ptrue <|> pfalse <|> try parenthesis
+    not = reservedOp lis "!" >> Not <$> atom
+    comparison = do a <- intexp
+                    (reservedOp lis "==" >> Eq a <$> intexp)
+                     <|> (reservedOp lis "!=" >> NEq a <$> intexp)
+                     <|> (reservedOp lis "<" >> Lt a <$> intexp)
+                     <|> (reservedOp lis ">" >> Gt a <$> intexp)
     ptrue  = reserved lis "true" >> return BTrue
     pfalse = reserved lis "false" >> return BFalse
-    negation = reservedOp lis "!" >> Not <$> boolexp
     parenthesis = parens lis boolexp
-
-    lt = intBinOp "<" Lt
-    gt = intBinOp ">" Gt
-    eq = intBinOp "==" Eq
-    neq = intBinOp "!=" NEq
-
-    and = boolBinOp "&&" And
-    or = boolBinOp "||" Or
 
 -----------------------------------
 --- Parser de comandos
@@ -130,26 +121,24 @@ comm = do
     passign = do
       v <- identifier lis
       reservedOp lis "="
-      e <- intexp
-      return $ Let v e
+      Let v <$> intexp
 
     pifelse = do
       reserved lis "if"
       b <- boolexp
       c <- braces lis comm
-      (do f <- pelse; return $ f b c) <|> (return $ IfThen b c)
+      (do f <- pelse; return $ f b c) <|> return (IfThen b c)
 
     pelse = do
       reserved lis "else"
       c2 <- braces lis comm
-      return $ \b -> (\c1 -> IfThenElse b c1 c2)
+      return $ \b c1 -> IfThenElse b c1 c2
 
     prepeat = do
       reserved lis "repeat"
       c <- braces lis comm
       reserved lis "until"
-      b <- boolexp
-      return $ Repeat c b
+      Repeat c <$> boolexp
 
     pseq = do
       reservedOp lis ";"

@@ -105,6 +105,7 @@ evalExp (Div e1 e2) s   = do
   if n2 == 0
     then Left DivByZero
     else evalBinOp div e1 e2 s
+-- ! FIXME: Falta un trace acá
 evalExp (EAssgn v e) s  = do
   n :!: s' <- evalExp e s
   let s'' = update v n s'
