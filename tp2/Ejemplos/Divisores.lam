@@ -1,0 +1,18 @@
+-- n - m
+def sub = \n m . foldn m pred n
+
+-- n > m
+def gt  = \n m . is0 (sub m n)
+
+-- max(n, m)
+def max = \n m . (gt n m) n m
+
+-- n `mod` m
+def mod = Y \f. \n m. (gt m n) n (f (sub n m) m)
+
+def divisoresM = \n i.
+	(is0 i)          nil
+	((is0 (mod n i)) (cons i (divisoresN n (pred i)))
+	                 (divisoresN n (pred i)))
+
+def divisores = \n. divisoresM n (pred n)
