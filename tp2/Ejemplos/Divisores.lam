@@ -1,18 +1,28 @@
+def foldn = id
+
 -- n - m
 def sub = \n m . foldn m pred n
 
--- n > m
-def gt  = \n m . is0 (sub m n)
+-- n >= m
+def gte = \n m . is0 (sub m n)
+
+-- n == m
+def eq  = \n m . (gte n m) (gte m n) false
 
 -- max(n, m)
-def max = \n m . (gt n m) n m
+def max = \n m . (gte n m) n m
 
 -- n `mod` m
-def mod = Y \f. \n m. (gt m n) n (f (sub n m) m)
+def mod = Y \R. \n m.
+	(eq n m)   0
+	((gte m n) n
+	           (R (sub n m) m))
 
-def divisoresM = \n i.
+def divisoresN = Y \R. \n i.
 	(is0 i)          nil
-	((is0 (mod n i)) (cons i (divisoresN n (pred i)))
-	                 (divisoresN n (pred i)))
+	((is0 (mod n i)) (cons i (R n (pred i)))
+	                 (R n (pred i)))
 
-def divisores = \n. divisoresM n (pred n)
+def divisores = \n. divisoresN n (pred n)
+
+def range = Y \R. \n. (is0 n) nil ((gte n 2) (cons n (R (pred n))) (R (pred n)))

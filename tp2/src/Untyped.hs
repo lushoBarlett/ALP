@@ -45,28 +45,26 @@ eval' (Lam t) (gEnv, lEnv) = VLam $ \v -> eval' t (gEnv, v:lEnv)
 --------------------------------
 
 replace :: Int -> Term -> Term
-replace total (Free (Quote k)) = Bound (total - k - 1)
-replace total (Free n) = Free n
-replace total (t1 :@: t2) = replace total t1 :@: replace total t2
-replace total (Lam t) = Lam $ replace total t
-replace total (Bound ii) = Bound ii
+replace i (Free (Quote k)) = Bound $ i - k - 1
+replace i (Free n) = Free n
+replace i (t1 :@: t2) = replace i t1 :@: replace i t2
+replace i (Lam t) = Lam $ replace (i + 1) t
+replace i (Bound ii) = Bound ii -- ???
 
 quote :: Value -> Term
-quote v =
-  let (t, total) = quote' 0 v
-   in t
+quote v = quote' 0 v
 
-quote' :: Int -> Value -> (Term, Int)
+quote' :: Int -> Value -> Term
 quote' k (VLam f) =
-  let (fterm, total) = quote' (k + 1) $ f value
-   in (replace total $ Lam fterm, total)
+  let fterm = quote' (k + 1) $ f value
+   in replace k $ Lam fterm
   where
     value = VNeutral $ NFree (Quote k)
 quote' k (VNeutral neu) = quoteNeutral k neu
 
-quoteNeutral :: Int -> Neutral -> (Term, Int)
-quoteNeutral k (NFree n) = (Free n, k)
+quoteNeutral :: Int -> Neutral -> Term
+quoteNeutral k (NFree n) = Free n
 quoteNeutral k (NApp neu v) =
-  let (t, total) = quoteNeutral k neu
-      (u, total') = quote' total v
-   in (t :@: u, total')
+  let t = quoteNeutral k neu
+      u = quote' k v
+   in t :@: u
