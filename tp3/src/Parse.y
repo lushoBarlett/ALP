@@ -24,9 +24,11 @@ import Data.Char
     '->'    { TArrow }
     VAR     { TVar $$ }
     TYPEE   { TTypeE }
+    TUNIT   { TTypeUnit }
     DEF     { TDef }
     LET     { TLet }
     IN      { TIn }
+    UNIT    { TUnit }
 
 %right VAR
 %left '=' 
@@ -54,10 +56,12 @@ Let     :: { LamTerm }
 Atom    :: { LamTerm }
         : VAR                          { LVar $1 }  
         | '(' Exp ')'                  { $2 }
+	| UNIT                         { LUnit }
 
 Type    : TYPEE                        { EmptyT }
         | Type '->' Type               { FunT $1 $3 }
         | '(' Type ')'                 { $2 }
+	| TUNIT                        { UnitT }
 
 Defs    : Defexp Defs                  { $1 : $2 }
         |                              { [] }
@@ -92,9 +96,11 @@ happyError = \ s i -> Failed $ "Línea "++(show (i::LineNumber))++": Error de pa
 
 data Token = TVar String
                | TTypeE
+	       | TTypeUnit
                | TDef
 	       | TLet
 	       | TIn
+	       | TUnit
                | TAbs
                | TDot
                | TOpen
@@ -127,9 +133,11 @@ lexer cont s = case s of
                      "Línea "++(show line)++": No se puede reconocer "++(show $ take 10 unknown)++ "..."
                     where lexVar cs = case span isAlpha cs of
                               ("E",rest)    -> cont TTypeE rest
+                              ("Unit",rest) -> cont TTypeUnit rest
                               ("def",rest)  -> cont TDef rest
 			      ("let",rest)  -> cont TLet rest
 			      ("in",rest)   -> cont TIn rest
+			      ("unit",rest) -> cont TUnit rest
                               (var,rest)    -> cont (TVar var) rest
                           consumirBK anidado cl cont s = case s of
                               ('-':('-':cs)) -> consumirBK anidado cl cont $ dropWhile ((/=) '\n') cs

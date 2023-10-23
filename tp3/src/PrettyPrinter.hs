@@ -25,7 +25,7 @@ parensIf False = id
 pp :: Int -> [String] -> Term -> Doc
 pp ii vs (Bound k         ) = text (vs !! (ii - k - 1))
 pp _  _  (Free  (Global s)) = text s
-
+pp _  _  Unit               = text "unit"
 pp ii vs (i :@: c         ) = sep
   [ parensIf (isLam i) (pp ii vs i)
   , nest 1 (parensIf (isLam c || isApp c) (pp ii vs c))
@@ -75,6 +75,7 @@ fv (Free  (Global n)) = [n]
 fv (t   :@: u       ) = fv t ++ fv u
 fv (Lam _   u       ) = fv u
 fv (Let t u         ) = fv t ++ fv u
+fv Unit               = []
 
 ---
 printTerm :: Term -> Doc

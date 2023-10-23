@@ -25,6 +25,7 @@ conversion' b (LVar n    ) = maybe (Free (Global n)) Bound (n `elemIndex` b)
 conversion' b (LApp t u  ) = conversion' b t :@: conversion' b u
 conversion' b (LAbs n t u) = Lam t (conversion' (n : b) u)
 conversion' b (LLet v t u) = Let (conversion' b t) (conversion' (v : b) u)
+conversion' _ LUnit        = Unit
 
 
 -----------------------
@@ -38,6 +39,7 @@ sub _ _ (Free n   )           = Free n
 sub i t (u   :@: v)           = sub i t u :@: sub i t v
 sub i t (Lam t'  u)           = Lam t' (sub (i + 1) t u)
 sub i t (Let t'  u)           = Let (sub i t t') (sub (i + 1) t u)
+sub _ _ Unit                  = Unit
 
 -- evaluador de términos
 eval :: NameEnv Value Type -> Term -> Value
@@ -50,6 +52,7 @@ eval e (u        :@: v      ) = case eval e u of
   VLam t u' -> eval e (Lam t u' :@: v)
   _         -> error "Error de tipo en run-time, verificar type checker"
 eval e (Let t u)              = eval e $ sub 0 t u
+eval _ Unit                   = VUnit
 
 
 -----------------------
@@ -58,6 +61,7 @@ eval e (Let t u)              = eval e $ sub 0 t u
 
 quote :: Value -> Term
 quote (VLam t f) = Lam t f
+quote VUnit      = Unit
 
 ----------------------
 --- type checker
@@ -105,5 +109,6 @@ infer' c e (t :@: u) = infer' c e t >>= \tt -> infer' c e u >>= \tu ->
     _          -> notfunError tt
 infer' c e (Lam t u) = infer' (t : c) e u >>= \tu -> ret $ FunT t tu
 infer' c e (Let t u) = infer' c e t >>= \tt -> infer' (tt : c) e u
+infer' _ _ Unit      = ret UnitT
 
 ----------------------------------
