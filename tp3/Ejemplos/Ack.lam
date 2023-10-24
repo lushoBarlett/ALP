@@ -1,0 +1,4 @@
+def fsuc = \n:Nat. suc n
+def one = suc zero
+def Ackm = \f:Nat->Nat.\n:Nat. R (f one) (\r:Nat.\x:Nat. f r) n
+def Ack = \m:Nat. R fsuc (\f:Nat->Nat.\y:Nat. Ackm f) m

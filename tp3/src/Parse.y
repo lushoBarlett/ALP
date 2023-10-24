@@ -40,7 +40,10 @@ import Data.Char
 %right VAR
 %left '='
 %right '->'
-%right '\\' '.'
+%right '\\' '.' LET IN
+%left REC
+%left SUC
+%left FST SND
 
 %%
 
@@ -55,7 +58,7 @@ Exp     :: { LamTerm }
 	| FST Exp                      { LFst $2 }
 	| SND Exp                      { LSnd $2 }
 	| SUC Exp                      { LSuc $2 }
-	| REC Exp Exp Exp              { LRec $2 $3 $4 }
+	| REC Atom Atom Atom           { LRec $2 $3 $4 }
 
 NAbs    :: { LamTerm }
         : NAbs Atom                    { LApp $1 $2 }
