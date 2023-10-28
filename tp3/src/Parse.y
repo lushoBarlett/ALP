@@ -41,9 +41,11 @@ import Data.Char
 %left '='
 %right '->'
 %right '\\' '.' IN
-%nonassoc REC
-%nonassoc SUC
-%nonassoc FST SND
+-- esto no esta funcionando
+-- fst fst ((zero,zero),zero) no deberia parsear
+%left REC
+%left SUC
+%left FST SND
 
 %%
 
@@ -55,10 +57,6 @@ Exp     :: { LamTerm }
         : '\\' VAR ':' Type '.' Exp    { LAbs $2 $4 $6 }
 	| Let                          { $1 }
         | NAbs                         { $1 }
-	| FST Atom                      { LFst $2 }
-	| SND Atom                      { LSnd $2 }
-	| SUC Atom                      { LSuc $2 }
-	| REC Atom Atom Atom           { LRec $2 $3 $4 }
 
 NAbs    :: { LamTerm }
         : NAbs Atom                    { LApp $1 $2 }
@@ -71,6 +69,15 @@ Atom    :: { LamTerm }
         : VAR                          { LVar $1 }
 	| UNIT                         { LUnit }
 	| ZERO                         { LZero }
+        -- deberían ser atoms
+        -- si ve un fst, asume que es lo último
+        -- que hay en una expresión, cuando bien podría
+        -- ser app'd a otra cosa
+        -- fst (\x:Nat.x,zero) zero deberia parsear
+	| FST Atom                     { LFst $2 }
+	| SND Atom                     { LSnd $2 }
+	| SUC Atom                     { LSuc $2 }
+	| REC Atom Atom Atom           { LRec $2 $3 $4 }
         | '(' Exp ')'                  { $2 }
 	| '(' Exp ',' Exp ')'          { LPair $2 $4 }
 

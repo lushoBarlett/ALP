@@ -15,6 +15,7 @@ import           Prelude                 hiding ( (>>=) )
 import           Text.PrettyPrint.HughesPJ      ( render )
 import           PrettyPrinter
 import           Common
+import Common (Value(VNum))
 
 -- conversion a términos localmente sin nombres
 conversion :: LamTerm -> Term
@@ -76,8 +77,10 @@ eval _ Zero     = VNum NZero
 eval e (Suc x)  = case eval e x of
   VNum n -> VNum (NSuc n)
   _      -> error "Esperaba un número natural en aplicación de suc"
-eval e (Rec b r Zero)    = eval e b
-eval e (Rec b r (Suc n)) = eval e (r :@: Rec b r n :@: n)
+eval e (Rec b r t) = case eval e t of
+  VNum NZero    -> eval e b
+  VNum (NSuc n) -> eval e (r :@: Rec b r (quoteNat n) :@: (quoteNat n))
+  _             -> error "Esperaba un número natural en aplicación de rec"
 
 
 -----------------------
