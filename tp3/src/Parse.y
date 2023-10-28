@@ -40,7 +40,7 @@ import Data.Char
 %right VAR
 %left '='
 %right '->'
-%right '\\' '.' LET IN
+%right '\\' '.' IN
 %left REC
 %left SUC
 %left FST SND
