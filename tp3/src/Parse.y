@@ -41,11 +41,10 @@ import Data.Char
 %left '='
 %right '->'
 %right '\\' '.' IN
--- esto no esta funcionando
--- fst fst ((zero,zero),zero) no deberia parsear
-%left REC
-%left SUC
-%left FST SND
+-- fst fst ((zero,zero),zero) deberia parsear
+%right REC
+%right SUC
+%right FST SND
 
 %%
 
@@ -56,6 +55,12 @@ Defexp  : DEF VAR '=' Exp              { Def $2 $4 }
 Exp     :: { LamTerm }
         : '\\' VAR ':' Type '.' Exp    { LAbs $2 $4 $6 }
 	| Let                          { $1 }
+        -- deberían ser exp
+	-- por tener menos precedencia que la app
+	| FST Exp                      { LFst $2 }
+	| SND Exp                      { LSnd $2 }
+	| SUC Exp                      { LSuc $2 }
+	| REC Atom Atom Exp            { LRec $2 $3 $4 }
         | NAbs                         { $1 }
 
 NAbs    :: { LamTerm }
@@ -69,15 +74,6 @@ Atom    :: { LamTerm }
         : VAR                          { LVar $1 }
 	| UNIT                         { LUnit }
 	| ZERO                         { LZero }
-        -- deberían ser atoms
-        -- si ve un fst, asume que es lo último
-        -- que hay en una expresión, cuando bien podría
-        -- ser app'd a otra cosa
-        -- fst (\x:Nat.x,zero) zero deberia parsear
-	| FST Atom                     { LFst $2 }
-	| SND Atom                     { LSnd $2 }
-	| SUC Atom                     { LSuc $2 }
-	| REC Atom Atom Atom           { LRec $2 $3 $4 }
         | '(' Exp ')'                  { $2 }
 	| '(' Exp ',' Exp ')'          { LPair $2 $4 }
 
