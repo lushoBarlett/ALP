@@ -1,8 +1,9 @@
 module Main (main) where
 
-import Parser (qcparse, lexer)
+import Parser (qcparser, lexer)
+import Common (showState)
+import PrettyPrint (pp)
+import Eval (eval)
 
 main :: IO ()
-main = do
-  contents <- getContents
-  print $ qcparse $ lexer contents
+main = undefined

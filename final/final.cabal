@@ -25,8 +25,10 @@ source-repository head
 
 library
   exposed-modules:
-      AST
+      Common
+      Eval
       Parser
+      PrettyPrint
   other-modules:
       Paths_final
   autogen-modules:
@@ -35,7 +37,9 @@ library
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
-      base >=4.7 && <5
+      array
+    , base >=4.7 && <5
+    , containers
   default-language: Haskell2010
 
 executable final-exe
@@ -48,21 +52,8 @@ executable final-exe
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
-    , final
-  default-language: Haskell2010
-
-test-suite final-test
-  type: exitcode-stdio-1.0
-  main-is: Spec.hs
-  other-modules:
-      Paths_final
-  autogen-modules:
-      Paths_final
-  hs-source-dirs:
-      test
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-      base >=4.7 && <5
+      array
+    , base >=4.7 && <5
+    , containers
     , final
   default-language: Haskell2010
