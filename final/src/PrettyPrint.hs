@@ -1,12 +1,12 @@
-module PrettyPrint (pp) where
+module PrettyPrint (prettyPrint) where
 
 import Common (QC(..))
 
-ppbody :: [QC] -> String
-ppbody = foldMap (\b -> pp b ++ "\n")
+ppbody :: Int -> [QC] -> String
+ppbody tabs = foldMap (\b -> pp (tabs + 1) b ++ ";" ++ endl)
 
-pppreps :: [QC] -> String
-pppreps = foldMap (\p -> pp p ++ ", ")
+pppreps :: Int -> [QC] -> String
+pppreps tabs = foldMap (\p -> pp tabs p ++ ", ")
 
 ppargs :: [String] -> String
 ppargs = foldMap (++ ", ")
@@ -14,14 +14,29 @@ ppargs = foldMap (++ ", ")
 withParens :: String -> String
 withParens s = "(" ++ s ++ ")"
 
-withBraces :: String -> String
-withBraces s = "{" ++ s ++ "}"
+withBraces :: Int -> String -> String
+withBraces tabs s = "{" ++ endl ++ s ++ repeatTabs tabs ++ "}"
 
-pp :: QC -> String
-pp (QCCircuit name preps body) = "circuit " ++ name ++ withParens (pppreps preps) ++ withBraces (ppbody body)
-pp (QCPreparation n name) = show n ++ "->" ++ name
-pp (QCGate name args body) = "gate " ++ ppargs args ++ name ++ withBraces (ppbody body)
-pp (QCArrow op1 op2) = pp op1 ++ " -> " ++ pp op2
-pp (QCTensor op1 op2) = pp op1 ++ pp op2
-pp (QCVariable name) = name
-pp QCIdentity = "|"
+withSpaces :: String -> String
+withSpaces s = " " ++ s ++ " "
+
+arrow :: String
+arrow = " -> "
+
+endl :: String
+endl = "\n"
+
+repeatTabs :: Int -> String
+repeatTabs = flip replicate '\t'
+
+pp :: Int -> QC -> String
+pp tabs (QCCircuit name preps body) = repeatTabs tabs ++ "circuit " ++ name ++ withSpaces (withParens (pppreps tabs preps)) ++ withBraces tabs (ppbody tabs body)
+pp _    (QCPreparation n name) = show n ++ arrow ++ name
+pp tabs (QCGate name args body) = repeatTabs tabs ++ "gate " ++ ppargs args ++ arrow ++ name ++ withSpaces (withBraces tabs (ppbody tabs body))
+pp tabs (QCArrow op1 op2) = repeatTabs tabs ++ pp 0 op1 ++ arrow ++ pp 0 op2
+pp tabs (QCTensor op1 op2) = pp tabs op1 ++ pp tabs op2
+pp _    (QCVariable name) = name
+pp _    QCIdentity = "|"
+
+prettyPrint :: QC -> String
+prettyPrint = pp 0

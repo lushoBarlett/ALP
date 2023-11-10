@@ -30,6 +30,7 @@ Circuit :: { QC }
 Circuit : CIR VAR '(' PrepList ')' CirBody { QCCircuit $2 $4 $6 }
 
 PrepList :: { [QC] }
+PrepList : {- empty -} { [] }
 PrepList : Prep { [$1] }
 PrepList : Prep ',' PrepList { $1 : $3 }
 
@@ -40,7 +41,9 @@ CirBody :: { [QC] }
 CirBody : '{' Statements '}' { $2 }
 
 Statements :: { [QC] }
+Statements : {- empty -} { [] }
 Statements : Expr { [$1] }
+Statements : Def { [$1] }
 Statements : Expr ';' Statements { $1 : $3 }
 Statements : Def ';' Statements { $1 : $3 }
 
