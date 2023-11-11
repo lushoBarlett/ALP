@@ -29,14 +29,22 @@ endl = "\n"
 repeatTabs :: Int -> String
 repeatTabs = flip replicate '\t'
 
+pptensor :: [QC] -> String
+pptensor = foldMap (\b -> pp 0 b ++ ".")
+
 pp :: Int -> QC -> String
 pp tabs (QCCircuit name preps body) = repeatTabs tabs ++ "circuit " ++ name ++ withSpaces (withParens (pppreps tabs preps)) ++ withBraces tabs (ppbody tabs body)
 pp _    (QCPreparation n name) = show n ++ arrow ++ name
 pp tabs (QCGate name args body) = repeatTabs tabs ++ "gate " ++ ppargs args ++ arrow ++ name ++ withSpaces (withBraces tabs (ppbody tabs body))
-pp tabs (QCArrow op1 op2) = repeatTabs tabs ++ pp 0 op1 ++ arrow ++ pp 0 op2
-pp tabs (QCTensor op1 op2) = pp tabs op1 ++ pp tabs op2
+pp tabs (QCOperation qbitnames qc) = repeatTabs tabs ++ ppargs qbitnames ++ arrow ++ pp 0 qc
+pp tabs (QCArrow ops1 ops2) = repeatTabs tabs ++ pp tabs ops1 ++ arrow ++ pp tabs ops2
+pp tabs (QCTensors ops) = repeatTabs tabs ++ pptensor ops
 pp _    (QCVariable name) = name
-pp _    QCIdentity = "|"
+pp _    QCI = "|"
+pp _    QCX = "X"
+pp _    QCY = "Y"
+pp _    QCZ = "Z"
+pp _    QCH = "H"
 
 prettyPrint :: QC -> String
 prettyPrint = pp 0

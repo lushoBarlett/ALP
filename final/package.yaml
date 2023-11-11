@@ -24,6 +24,7 @@ dependencies:
 - array
 - containers
 - haskeline
+- mtl
 
 ghc-options:
 - -Wall

@@ -27,44 +27,49 @@ import Data.Char
 %%
 
 Circuit :: { QC }
-Circuit : CIR VAR '(' PrepList ')' CirBody { QCCircuit $2 $4 $6 }
+Circuit : CIR VAR '(' PreparationList ')' Body { QCCircuit $2 $4 $6 }
 
-PrepList :: { [QC] }
-PrepList : {- empty -} { [] }
-PrepList : Prep { [$1] }
-PrepList : Prep ',' PrepList { $1 : $3 }
+PreparationList :: { [QC] }
+PreparationList : {- empty -} { [] }
+PreparationList : Preparation { [$1] }
+PreparationList : Preparation ',' { [$1] } -- optional trailing comma
+PreparationList : Preparation ',' PreparationList { $1 : $3 }
 
-Prep :: { QC }
-Prep : INT '->' VAR { QCPreparation $1 $3 }
+Preparation :: { QC }
+Preparation : INT '->' VAR { QCPreparation $1 $3 }
 
-CirBody :: { [QC] }
-CirBody : '{' Statements '}' { $2 }
+Body :: { [QC] }
+Body : '{' Statements '}' { $2 }
 
 Statements :: { [QC] }
 Statements : {- empty -} { [] }
-Statements : Expr { [$1] }
-Statements : Def { [$1] }
-Statements : Expr ';' Statements { $1 : $3 }
-Statements : Def ';' Statements { $1 : $3 }
+Statements : Statement ';' Statements { $1 : $3 }
 
-Def :: { QC }
-Def : GATE ArgList '->' VAR CirBody { QCGate $4 $2 $5 }
+Statement : Definition { $1 }
+          | Operation  { $1 }
 
-ArgList :: { [String] }
-ArgList : VAR { [$1] }
-ArgList : VAR ',' ArgList { $1 : $3 }
+Definition :: { QC }
+Definition : GATE ArgumentList '->' VAR Body { QCGate $4 $2 $5 }
 
-Expr :: { QC }
-Expr : Tensor         { $1 }
-Expr : Expr '->' Expr { QCArrow $1 $3 }
+Operation :: { QC }
+Operation : ArgumentList '->' Chain { QCOperation $1 $3 }
 
-Tensor :: { QC }
-Tensor : Operator        { $1 }
-Tensor : Operator Tensor { QCTensor $1 $2 }
+ArgumentList :: { [String] }
+ArgumentList : VAR { [$1] }
+ArgumentList : VAR ',' { [$1] } -- optional trailing comma
+ArgumentList : VAR ',' ArgumentList { $1 : $3 }
+
+Chain :: { QC }
+Chain : Tensor           { QCTensors $1 }
+Chain : Chain '->' Chain { QCArrow $1 $3 }
+
+Tensor :: { [QC] }
+Tensor : Operator        { [$1] }
+Tensor : Operator Tensor { $1 : $2 }
 
 Operator :: { QC }
 Operator : VAR { QCVariable $1 }
-         | '|' { QCIdentity }
+         | '|' { QCVariable "I" }
 
 {
 data Token
