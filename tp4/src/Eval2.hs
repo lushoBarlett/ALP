@@ -35,14 +35,21 @@ instance Applicative StateError where
 
 -- Ejercicio 2.a: Dar una instancia de Monad para StateError:
 instance Monad StateError where
-  return x = undefined
-  m >>= f = undefined
+  return x = StateError $ \env -> Right (x :!: env)
+  m >>= f = StateError $ \env -> case runStateError m env of
+    Left e -> Left e
+    Right (x :!: e) -> runStateError (f x) e
 
 -- Ejercicio 2.b: Dar una instancia de MonadError para StateError:
--- COMPLETAR
+instance MonadError StateError where
+  throw e = StateError $ \_ -> Left e
 
 -- Ejercicio 2.c: Dar una instancia de MonadState para StateError:
--- COMPLETAR
+instance MonadState StateError where
+  lookfor v = StateError $ \env -> case M.lookup v env of
+    Nothing -> Left UndefVar
+    Just x  -> Right (x :!: env)
+  update v x = StateError $ \env -> Right (() :!: M.insert v x env)
 
 -- Ejercicio 2.d: Implementar el evaluador utilizando la monada StateError.
 -- Evalua un programa en el estado nulo
