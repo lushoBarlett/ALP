@@ -1,0 +1,90 @@
+newtype State a = State {runState :: Env → Pair a Env}
+instance Monad State where
+	return x = State (λs → (v :!: s))
+	m >>= f = State (λs → let (v :!: s') = runState m s
+				in runState (f v) s')
+- Ley 1 -
+return x >>= f === f x
+D/
+return x >>= f                     === <def bind>
+State (λs →
+  let (v :!: s') = runState (return x) s
+  in runState (f v) s')            === <lema, v = x, s' = s, semantica de let>
+State (λs → runState (f x) s)      === <lema>
+f x
+
+Lema:
+State (\s -> runState m s) === <tipo de m, con h :: Env -> Pair a Env>
+State (\s -> runState (State h) s) === <def runState>
+State (\s -> h s) === <eta-reduction>
+State h === <def m>
+m
+
+Lema:
+runState (return x) s === <def return>
+runState (State (λs → (x :!: s))) s === <def runState>
+(λs → (x :!: s)) s === <app>
+(x :!: s)
+
+- Ley 2 -
+m >>= return === m
+D/
+m >>= return                       === <def bind>
+State (λs →
+  let (v :!: s') = runState m s
+  in runState (return v) s)        === <def return>
+State (λs →
+  let (v :!: s') = runState m s
+  in runState (State (λs → (v :!: s)) s)=== <def runState>
+State (λs →
+  let (v :!: s') = runState m s
+  in (λs → (v :!: s)) s')=== <app>
+State (λs →
+  let (v :!: s') = runState m s
+  in (v :!: s')) === <semantica de let-in>
+State (λs → runState m s) === <lema>
+m
+
+- Ley 3 -
+m >>= (\v -> f v >>= g) === (m >>= f) >>= g
+D/
+m >>= (\v -> f v >>= g) ===
+State (λs →
+  let (v :!: s') = runState m s
+  in runState ((\v -> f v >>= g) v) s) ===
+State (λs →
+  let (v :!: s') = runState m s
+  in runState (f v >>= g) s) ===
+State (λs →
+  let (v :!: s') = runState m s
+  in runState (State (λs →
+    let (v' :!: s'') = runState (f v) s
+    in runState (g v') s'')) s') ===
+
+State (λs →
+  let (v :!: s') = runState m s
+  in (
+    let (v' :!: s'') = runState (f v) s'
+    in runState (g v') s''))
+=== LEMA DE QUE PODES DAR VUELTA LOS LETS ===
+State (λs →
+  let (v' :!: s'') = (
+    let (v :!: s') = runState m s
+    in runState (f v) s')
+  in runState (g v') s'')
+
+=== IGUAL A LA VERSION SIMPLIFICADA DE HASKELL ===
+State (λs →
+  let (v :!: s') = runState m s
+      (v' :!: s'') = runState (f v) s'
+  in runState (g v') s''))
+
+State (λs →
+  let (v' :!: s'') = runState (State (λs →
+    let (v :!: s') = runState m s
+    in runState (f v) s')) s
+  in runState (g v') s'') ===
+State (λs →
+  let (v' :!: s'') = runState (m >>= f) s
+  in runState (g v') s'') ===
+(m >>= f) >>= g
