@@ -56,10 +56,64 @@ stepCommStar c    = stepComm c >>= \c' -> stepCommStar c'
 
 -- Evalua un paso de un comando
 stepComm :: MonadState m => Comm -> m Comm
-stepComm = undefined
+
+stepComm = return
+
+stepComm (Let v e) = do
+  n <- evalExp e
+  s <- get
+  put $ update v n s
+
+stepComm (Seq Skip c2) = return c2
+stepComm (Seq c1 c2) = do
+  c1' <- stepComm c1
+  return $ Seq c1' c2
+
+stepComm (IfThenElse bexp c1 c2) = do
+  b <- evalBExp bexp
+  if b then return c1 else return c2
+
+stepComm r@(Repeat c bexp) = return $ Seq c (IfThenElse bexp Skip r)
+
+evalUnOp :: MonadState m => (a -> b) -> Exp a -> m b
+evalUnOp f e = do
+  n <- evalExp e
+  return $ f n
+
+evalBinOp :: MonadState m => (a -> b -> c) -> Exp a -> Exp b -> m c
+evalBinOp f e1 e2 = do
+  n1 <- evalExp e1
+  n2 <- evalExp e2
+  return $ f n1 n2
 
 -- Evalua una expresion
 evalExp :: MonadState m => Exp a -> m a
-evalExp = undefined
-
-
+-- enteras
+evalExp (Const n) = return n
+evalExp (Var v) = do
+  s <- get
+  return $ Maybe.fromMaybe undefined (M.lookup v s)
+evalExp (UMinus e) = evalUnOp negate e
+evalExp (Plus e1 e2) = evalBinOp (+) e1 e2
+-- asociatividad?
+evalExp (Minus e1 e2) = evalBinOp (-) e1 e2
+evalExp (Times e1 e2) = evalBinOp (*) e1 e2
+evalExp (Div e1 e2) = evalBinOp div e1 e2
+evalExp (EAssgn v e) = do
+  n <- evalExp e
+  s <- get
+  put $ update v n s
+  return n
+evalExp (ESeq e1 e2) = do
+  evalExp e1
+  evalExp e2
+-- booleanas
+evalExp BTrue = return True
+evalExp BFalse = return False
+evalExp (Lt e1 e2) = evalBinOp (<) e1 e2
+evalExp (Gt e1 e2) = evalBinOp (>) e1 e2
+evalExp (And e1 e2) = evalBinOp (&&) e1 e2
+evalExp (Or e1 e2) = evalBinOp (||) e1 e2
+evalExp (Not e) = evalUnOp not e
+evalExp (Eq e1 e2) = evalBinOp (==) e1 e2
+evalExp (NEq e1 e2) = evalBinOp (/=) e1 e2
