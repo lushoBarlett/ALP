@@ -54,7 +54,9 @@ instance MonadState StateError where
 -- Ejercicio 2.d: Implementar el evaluador utilizando la monada StateError.
 -- Evalua un programa en el estado nulo
 eval :: Comm -> Either Error Env
-eval = undefined
+eval comm = case runStateError (stepCommStar comm) initEnv of
+  Left e -> Left e
+  Right (_ :!: env) -> Right env
 
 -- Evalua multiples pasos de un comando, hasta alcanzar un Skip
 stepCommStar :: (MonadState m, MonadError m) => Comm -> m ()
@@ -63,9 +65,54 @@ stepCommStar c    = stepComm c >>= \c' -> stepCommStar c'
 
 -- Evalua un paso de un comando
 stepComm :: (MonadState m, MonadError m) => Comm -> m Comm
-stepComm = undefined
+stepComm Skip = return Skip
+
+stepComm (Let var exp) = do
+  v <- evalExp exp
+  update var v
+  return Skip
+
+stepComm (Seq Skip c2) = return c2
+stepComm (Seq c1 c2) = do
+  c1' <- stepComm c1
+  return (Seq c1' c2)
+
+stepComm (IfThenElse b c1 c2) = do
+  b' <- evalExp b
+  if b' then return c1 else return c2
+
+stepComm r@(Repeat c bexp) = return $ Seq c (IfThenElse bexp Skip r)
+
+evalUnOp :: (MonadState m, MonadError m) => (a -> b) -> Exp a -> m b
+evalUnOp f e = do
+  v <- evalExp e
+  return (f v)
+
+evalBinOp :: (MonadState m, MonadError m) => (a -> b -> c) -> Exp a -> Exp b -> m c
+evalBinOp f e1 e2 = do
+  v1 <- evalExp e1
+  v2 <- evalExp e2
+  return (f v1 v2)
 
 -- Evalua una expresion
 evalExp :: (MonadState m, MonadError m) => Exp a -> m a
-evalExp = undefined
-
+-- enteras
+evalExp (Const n) = return n
+evalExp (Var x) = lookfor x
+evalExp (UMinus e) = evalUnOp negate e
+evalExp (Plus e1 e2) = evalBinOp (+) e1 e2
+evalExp (Minus e1 e2) = evalBinOp (-) e1 e2
+evalExp (Times e1 e2) = evalBinOp (*) e1 e2
+evalExp (Div e1 e2) = do
+  v2 <- evalExp e2
+  if v2 == 0 then throw DivByZero else evalBinOp div e1 e2
+-- booleanas
+evalExp BTrue = return True
+evalExp BFalse = return False
+evalExp (Lt e1 e2) = evalBinOp (<) e1 e2
+evalExp (Gt e1 e2) = evalBinOp (>) e1 e2
+evalExp (And e1 e2) = evalBinOp (&&) e1 e2
+evalExp (Or e1 e2) = evalBinOp (||) e1 e2
+evalExp (Not e) = evalUnOp not e
+evalExp (Eq e1 e2) = evalBinOp (==) e1 e2
+evalExp (NEq e1 e2) = evalBinOp (/=) e1 e2

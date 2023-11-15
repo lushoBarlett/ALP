@@ -57,7 +57,7 @@ stepCommStar c    = stepComm c >>= \c' -> stepCommStar c'
 -- Evalua un paso de un comando
 stepComm :: MonadState m => Comm -> m Comm
 
-stepComm = return
+stepComm Skip = return Skip
 
 stepComm (Let v e) = do
   n <- evalExp e
@@ -90,6 +90,7 @@ evalBinOp f e1 e2 = do
 evalExp :: MonadState m => Exp a -> m a
 -- enteras
 evalExp (Const n) = return n
+-- lookfor ?
 evalExp (Var v) = do
   s <- get
   return $ Maybe.fromMaybe undefined (M.lookup v s)
