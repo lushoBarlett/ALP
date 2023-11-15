@@ -61,8 +61,7 @@ stepComm Skip = return Skip
 
 stepComm (Let v e) = do
   n <- evalExp e
-  s <- get
-  put $ update v n s
+  update v n
   return Skip
 
 stepComm (Seq Skip c2) = return c2
@@ -71,7 +70,7 @@ stepComm (Seq c1 c2) = do
   return $ Seq c1' c2
 
 stepComm (IfThenElse bexp c1 c2) = do
-  b <- evalBExp bexp
+  b <- evalExp bexp
   if b then return c1 else return c2
 
 stepComm r@(While bexp c) = return $ IfThenElse bexp r Skip
@@ -91,10 +90,7 @@ evalBinOp f e1 e2 = do
 evalExp :: MonadState m => Exp a -> m a
 -- enteras
 evalExp (Const n) = return n
--- lookfor ?
-evalExp (Var v) = do
-  s <- get
-  return $ Maybe.fromMaybe undefined (M.lookup v s)
+evalExp (Var v) = lookfor v
 evalExp (UMinus e) = evalUnOp negate e
 evalExp (Plus e1 e2) = evalBinOp (+) e1 e2
 -- asociatividad?
@@ -103,8 +99,7 @@ evalExp (Times e1 e2) = evalBinOp (*) e1 e2
 evalExp (Div e1 e2) = evalBinOp div e1 e2
 evalExp (EAssgn v e) = do
   n <- evalExp e
-  s <- get
-  put $ update v n s
+  update v n
   return n
 evalExp (ESeq e1 e2) = do
   evalExp e1

@@ -91,12 +91,12 @@ stepComm (IfThenElse b c1 c2) = do
 
 stepComm r@(While bexp c) = return $ IfThenElse bexp r Skip
 
-evalUnOp :: Monad m => (a -> b) -> Exp a -> m b
+evalUnOp :: (MonadState m, MonadError m, MonadTrace m) => (a -> b) -> Exp a -> m b
 evalUnOp f e = do -- esto no es fmap?
   v <- evalExp e
   return (f v)
 
-evalBinOp :: Monad m => (a -> b -> c) -> Exp a -> Exp b -> m c
+evalBinOp :: (MonadState m, MonadError m, MonadTrace m) => (a -> b -> c) -> Exp a -> Exp b -> m c
 evalBinOp f e1 e2 = do -- esto no es ap?
   v1 <- evalExp e1
   v2 <- evalExp e2
@@ -116,8 +116,7 @@ evalExp (Div e1 e2) = do
   if v2 == 0 then throw DivByZero else evalBinOp div e1 e2
 evalExp (EAssgn v e) = do
   n <- evalExp e
-  s <- get
-  put $ update v n s
+  update v n
   trace $ v ++ " = " ++ show n ++ "\n"
   return n
 evalExp (ESeq e1 e2) = do

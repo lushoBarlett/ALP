@@ -22,8 +22,7 @@ initEnv = M.empty
 
 -- Mónada estado, con manejo de errores
 newtype StateError a =
-  StateError { runStateError :: Env -> Either Error ( Pair a Env) }
-
+  StateError { runStateError :: Env -> Either Error (Pair a Env) }
 
 -- Para calmar al GHC
 instance Functor StateError where
@@ -108,8 +107,7 @@ evalExp (Div e1 e2) = do
   if v2 == 0 then throw DivByZero else evalBinOp div e1 e2
 evalExp (EAssgn v e) = do
   n <- evalExp e
-  s <- get
-  put $ update v n s
+  update v n
   return n
 evalExp (ESeq e1 e2) = do
   evalExp e1
