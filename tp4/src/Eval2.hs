@@ -81,7 +81,7 @@ stepComm (IfThenElse b c1 c2) = do
   b' <- evalExp b
   if b' then return c1 else return c2
 
-stepComm r@(Repeat c bexp) = return $ Seq c (IfThenElse bexp Skip r)
+stepComm r@(While bexp c) = return $ IfThenElse bexp r Skip
 
 evalUnOp :: (MonadState m, MonadError m) => (a -> b) -> Exp a -> m b
 evalUnOp f e = do
@@ -106,6 +106,14 @@ evalExp (Times e1 e2) = evalBinOp (*) e1 e2
 evalExp (Div e1 e2) = do
   v2 <- evalExp e2
   if v2 == 0 then throw DivByZero else evalBinOp div e1 e2
+evalExp (EAssgn v e) = do
+  n <- evalExp e
+  s <- get
+  put $ update v n s
+  return n
+evalExp (ESeq e1 e2) = do
+  evalExp e1
+  evalExp e2
 -- booleanas
 evalExp BTrue = return True
 evalExp BFalse = return False

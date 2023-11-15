@@ -47,7 +47,7 @@ instance MonadState State where
 
 -- Evalua un programa en el estado nulo
 eval :: Comm -> Env
-eval p = snd (runState (stepCommStar p) initEnv)
+eval comm = snd $ runState (stepCommStar comm) initEnv
 
 -- Evalua multiples pasos de un comando, hasta alcanzar un Skip
 stepCommStar :: MonadState m => Comm -> m ()
@@ -73,7 +73,7 @@ stepComm (IfThenElse bexp c1 c2) = do
   b <- evalBExp bexp
   if b then return c1 else return c2
 
-stepComm r@(Repeat c bexp) = return $ Seq c (IfThenElse bexp Skip r)
+stepComm r@(While bexp c) = return $ IfThenElse bexp r Skip
 
 evalUnOp :: MonadState m => (a -> b) -> Exp a -> m b
 evalUnOp f e = do
