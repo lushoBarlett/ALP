@@ -77,7 +77,6 @@ stepComm (Let v e) = do
   x <- evalExp e
   update v x
   trace $ v ++ " = " ++ show x ++ "\n"
-  return Skip -- siento que esto no estaba bien
 
 stepComm (Seq Skip c2) = return c2
 

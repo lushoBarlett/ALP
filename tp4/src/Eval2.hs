@@ -70,7 +70,6 @@ stepComm Skip = return Skip
 stepComm (Let var exp) = do
   v <- evalExp exp
   update var v
-  return Skip
 
 stepComm (Seq Skip c2) = return c2
 stepComm (Seq c1 c2) = do
