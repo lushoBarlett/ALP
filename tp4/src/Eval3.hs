@@ -42,13 +42,19 @@ instance Monad StateErrorTrace where
       Right ((y, t') :!: env'') -> Right ((y, t ++ t') :!: env'')
 
 -- Ejercicio 3.c: Dar una instancia de MonadTrace para StateErrorTrace.
--- COMPLETAR
+instance MonadTrace StateErrorTrace where
+  trace s = StateErrorTrace $ \env -> Right $ ((), s) :!: env
 
 -- Ejercicio 3.d: Dar una instancia de MonadError para StateErrorTrace.
--- COMPLETAR
+instance MonadError StateErrorTrace where
+  throw e = StateErrorTrace $ \_ -> Left e
 
 -- Ejercicio 3.e: Dar una instancia de MonadState para StateErrorTrace.
--- COMPLETAR
+instance MonadState StateErrorTrace where
+  lookfor v = StateErrorTrace $ \env -> case M.lookup v env of
+    Nothing -> Left UndefVar
+    Just x  -> Right $ (x, "") :!: env
+  update v x = StateErrorTrace $ \env -> Right $ ((), "") :!: M.insert v x env
 
 -- Ejercicio 3.f: Implementar el evaluador utilizando la monada StateErrorTrace.
 -- Evalua un programa en el estado nulo
