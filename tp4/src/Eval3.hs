@@ -26,10 +26,10 @@ initEnv = M.empty
 newtype StateErrorTrace a =
   StateErrorTrace { runStateErrorTrace :: Env -> Either Error (Pair (a, String) Env)}
 
-instance Functor StateErrorCost where
+instance Functor StateErrorTrace where
   fmap = liftM
 
-instance Applicative StateErrorCost where
+instance Applicative StateErrorTrace where
   pure  = return
   (<*>) = ap
 
