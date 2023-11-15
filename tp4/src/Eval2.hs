@@ -38,7 +38,7 @@ instance Monad StateError where
   return x = StateError $ \env -> Right (x :!: env)
   m >>= f = StateError $ \env -> case runStateError m env of
     Left e -> Left e
-    Right (x :!: e) -> runStateError (f x) e
+    Right (x :!: env') -> runStateError (f x) env'
 
 -- Ejercicio 2.b: Dar una instancia de MonadError para StateError:
 instance MonadError StateError where

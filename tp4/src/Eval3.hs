@@ -23,18 +23,23 @@ initEnv = M.empty
 -- Ejercicio 3.a: Proponer una nueva m\'onada que  
 -- lleve una traza de ejecución (además de manejar errores y estado).
 -- y dar su instancia de mónada. Llamarla |StateErrorTrace|. 
--- COMPLETAR
+newtype StateErrorTrace a =
+  StateErrorTrace { runStateErrorTrace :: Env -> Either Error (Pair (a, String) Env)}
 
--- Recuerde agregar las siguientes instancias para calmar al GHC:
--- instance Functor StateErrorCost where
---   fmap = liftM
+instance Functor StateErrorCost where
+  fmap = liftM
 
--- instance Applicative StateErrorCost where
---   pure  = return
---   (<*>) = ap
+instance Applicative StateErrorCost where
+  pure  = return
+  (<*>) = ap
 
--- Ejercicio 3.b: Resolver en Monad.hs
-
+instance Monad StateErrorTrace where
+  return x = StateErrorTrace $ \env -> Right ((x, "") :!: env)
+  m >>= f = StateErrorTrace $ \env -> case runStateErrorTrace m env of
+    Left e -> Left e
+    Right ((x, t) :!: env') -> case runStateErrorTrace (f x) env' of
+      Left e -> Left e
+      Right ((y, t') :!: env'') -> Right ((y, t ++ t') :!: env'')
 
 -- Ejercicio 3.c: Dar una instancia de MonadTrace para StateErrorTrace.
 -- COMPLETAR
