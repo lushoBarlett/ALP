@@ -63,6 +63,7 @@ stepComm (Let v e) = do
   n <- evalExp e
   s <- get
   put $ update v n s
+  return Skip
 
 stepComm (Seq Skip c2) = return c2
 stepComm (Seq c1 c2) = do
