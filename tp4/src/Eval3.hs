@@ -60,7 +60,9 @@ instance MonadState StateErrorTrace where
 -- Evalua un programa en el estado nulo
 
 eval :: Comm -> Either Error (Env, Trace)
-eval = undefined
+eval comm = case runStateErrorTrace (stepCommStar comm) initEnv of
+  Left e -> Left e
+  Right ((_, t) :!: env) -> Right (env, t)
 
 -- Evalua multiples pasos de un comando, hasta alcanzar un Skip
 -- stepCommStar :: [dar el tipo segun corresponda]
@@ -68,9 +70,57 @@ stepCommStar Skip = return ()
 stepCommStar c    = stepComm c >>= \c' -> stepCommStar c'
 
 -- Evalua un paso de un comando
--- stepComm :: [dar el tipo segun corresponda]
-stepComm = undefined
+stepComm :: (MonadState m, MonadError m, MonadTrace m) => Comm -> m Comm
+stepComm Skip = return Skip
 
--- Evalua una expresion 
--- evalIntExp :: [dar el tipo segun corresponda]
-evalExp = undefined
+stepComm (Let v e) = do
+  x <- evalExp e
+  update v x
+  trace $ v ++ " = " ++ show x ++ "\n"
+  return Skip -- siento que esto no estaba bien
+
+stepComm (Seq Skip c2) = return c2
+
+stepComm (Seq c1 c2) = do
+  c1' <- stepComm c1
+  return $ Seq c1' c2
+
+stepComm (IfThenElse b c1 c2) = do
+  b' <- evalExp b
+  if b' then return c1 else return c2
+
+stepComm r@(Repeat c bexp) = return $ Seq c (IfThenElse bexp Skip r)
+
+evalUnOp :: Monad m => (a -> b) -> Exp a -> m b
+evalUnOp f e = do -- esto no es fmap?
+  v <- evalExp e
+  return (f v)
+
+evalBinOp :: Monad m => (a -> b -> c) -> Exp a -> Exp b -> m c
+evalBinOp f e1 e2 = do -- esto no es ap?
+  v1 <- evalExp e1
+  v2 <- evalExp e2
+  return (f v1 v2)
+
+-- Evalua una expresion
+evalExp :: (MonadState m, MonadError m, MonadTrace m) => Exp a -> m a
+-- enteras
+evalExp (Const n) = return n
+evalExp (Var x) = lookfor x
+evalExp (UMinus e) = evalUnOp negate e
+evalExp (Plus e1 e2) = evalBinOp (+) e1 e2
+evalExp (Minus e1 e2) = evalBinOp (-) e1 e2
+evalExp (Times e1 e2) = evalBinOp (*) e1 e2
+evalExp (Div e1 e2) = do
+  v2 <- evalExp e2
+  if v2 == 0 then throw DivByZero else evalBinOp div e1 e2
+-- booleanas
+evalExp BTrue = return True
+evalExp BFalse = return False
+evalExp (Lt e1 e2) = evalBinOp (<) e1 e2
+evalExp (Gt e1 e2) = evalBinOp (>) e1 e2
+evalExp (And e1 e2) = evalBinOp (&&) e1 e2
+evalExp (Or e1 e2) = evalBinOp (||) e1 e2
+evalExp (Not e) = evalUnOp not e
+evalExp (Eq e1 e2) = evalBinOp (==) e1 e2
+evalExp (NEq e1 e2) = evalBinOp (/=) e1 e2
