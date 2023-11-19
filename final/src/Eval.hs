@@ -1,29 +1,48 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Eval(eval, EvalT(..), defaultRunEnv) where
+module Eval(eval, EvalT(..), defaultRunEnv, defaultState, run) where
 
-import Common (QC(..), State(..), Environment(..), Matrix(..), addCircuit, tensorQBit, qbitFromNumber, tensor, eye, Operator, Name)
+import Common (QC(..), State(..), Environment(..), Matrix(..), tensorQBit, qbitFromNumber, tensor, eye, Operator, Name)
 import Control.Monad.State (MonadState(..), StateT(..))
 import Control.Monad.Reader (MonadReader(..), ReaderT(..))
-import Control.Monad.Except (MonadError(..), ExceptT(..))
+import Control.Monad.Except (MonadError(..), ExceptT(..), runExceptT)
 import Data.Complex (Complex(..))
 import qualified Data.Map as Map
 import Data.List (elemIndex)
 
 newtype EvalT a = EvalT {
-  runEvalT :: ExceptT String (ReaderT Environment (StateT State IO)) a
-} deriving (Functor, Applicative, Monad, MonadError String, MonadReader Environment, MonadState State)
+  runEvalT :: ReaderT Environment (StateT State (ExceptT String IO)) a
+} deriving (Functor, Applicative, Monad, MonadReader Environment, MonadState State, MonadError String)
 
-defaultRunEnv :: EvalT ()
-defaultRunEnv = do
-  put $ State {
-    qbits = Matrix 0 0 [],
-    qbitnames = [],
-    localenv = Environment {
-      circuits = mempty,
-      gates = mempty
-    }
-  }
-  return ()
+run :: EvalT a -> Environment -> State -> IO (Either String (a, State))
+run evalM initEnv initState =
+  let evaluator = runEvalT evalM
+      withInitialEnv = runReaderT evaluator initEnv
+      withInitialState = runStateT withInitialEnv initState
+  in
+    runExceptT withInitialState
+
+defaultRunEnv :: Environment
+defaultRunEnv = Environment {
+  circuits = Map.empty,
+  gates = Map.fromList [
+    ("I", QCI),
+    ("X", QCX),
+    ("Y", QCY),
+    ("Z", QCZ),
+    ("H", QCH)
+  ]
+}
+
+defaultState :: State
+defaultState = State {
+  qbits = Matrix 0 0 [],
+  qbitnames = []
+}
+
+updateState :: (State -> State) -> EvalT ()
+updateState f = do
+  s <- get
+  put $ f s
 
 expand :: [Name] -> [Operator] -> EvalT Operator
 expand names partialOps = do
@@ -41,25 +60,17 @@ expand names partialOps = do
 
   return $ foldr1 tensor fillMissing
 
-eval :: QC -> EvalT State
-eval qc@(QCCircuit name preps body) = do
-  s <- get
-  put $ addCircuit name qc s
+eval :: QC -> EvalT ()
+eval (QCCircuit _ preps body) = do
   mapM_ eval preps
   mapM_ eval body
-  get
 
-eval (QCPreparation n name) = do
-  s <- get
-  put $ tensorQBit s name $ qbitFromNumber n
-  get
+eval (QCPreparation n name) =
+  updateState $ \s -> tensorQBit s name $ qbitFromNumber n
 
 eval (QCOperation names qc) = do
   op <- evalOperation names qc
-  s <- get
-  let qbs = qbits s
-  put $ s { qbits = qbs <> op }
-  get
+  updateState $ \s -> s { qbits = qbits s <> op }
 
 eval _ = undefined
 

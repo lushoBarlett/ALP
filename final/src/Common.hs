@@ -102,18 +102,15 @@ data Environment = Environment {
 -- supposed to be a column vector
 data State = State {
   qbits :: QBit,
-  qbitnames :: [Name],
-  localenv :: Environment
+  qbitnames :: [Name]
 }
 
 showState :: State -> String
 showState = show . asList . qbits
 
-addCircuit :: Name -> QC -> State -> State
-addCircuit name circuit state = state {
-  localenv = (localenv state) {
-    circuits = Map.insert name circuit (circuits $ localenv state)
-  }
+addCircuit :: Name -> QC -> Environment -> Environment
+addCircuit name circuit env = env {
+  circuits = Map.insert name circuit (circuits env)
 }
 
 addGate :: Name -> QC -> Environment -> Environment
@@ -124,8 +121,7 @@ addGate name gate env = env {
 tensorQBit :: State -> Name -> QBit -> State
 tensorQBit s1 name qbit = State {
   qbits = tensor (qbits s1) qbit,
-  qbitnames = qbitnames s1 ++ [name],
-  localenv = localenv s1
+  qbitnames = qbitnames s1 ++ [name]
 }
 
 qbitFromNumber :: Int -> QBit
