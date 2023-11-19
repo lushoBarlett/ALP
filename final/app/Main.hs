@@ -16,7 +16,7 @@ parseAndEval s = do
   ran <- run evalRes defaultRunEnv defaultState
   case ran of
     Left err -> print err
-    Right ((), state) -> print $ showState state
+    Right ((), state) -> putStrLn $ showState state
 
 main :: IO ()
 main = runInputT defaultSettings loop

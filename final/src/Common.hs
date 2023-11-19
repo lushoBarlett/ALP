@@ -18,7 +18,7 @@ module Common (
   qbitFromNumber,
 ) where
 
-import Data.Complex (Complex)
+import Data.Complex (Complex(..))
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
@@ -106,7 +106,8 @@ data State = State {
 }
 
 showState :: State -> String
-showState = show . asList . qbits
+showState state = concat $ ppcomplex <$> asList (qbits state)
+  where ppcomplex (r :+ i) = concat [show r, " + ", show i, "i\n"]
 
 addCircuit :: Name -> QC -> Environment -> Environment
 addCircuit name circuit env = env {

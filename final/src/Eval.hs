@@ -35,7 +35,7 @@ defaultRunEnv = Environment {
 
 defaultState :: State
 defaultState = State {
-  qbits = Matrix 0 0 [],
+  qbits = Matrix 1 1 [1],
   qbitnames = []
 }
 
@@ -73,7 +73,7 @@ evalSeq ((QCOperation names qc):qcs) = do
   evalSeq qcs
 evalSeq (gate@(QCGate name _ _):qcs) =
   local (\env -> env { gates = Map.insert name gate (gates env) }) $ evalSeq qcs
-evalSeq (_:_) = undefined
+evalSeq (qc:_) = error $ "Not implemented: evalSeq for " ++ show qc
 
 evalOperator :: [Name] -> QC -> EvalT Operator
 evalOperator names (QCArrow qc1 qc2) = do
@@ -98,8 +98,7 @@ evalOperator _ QCY = return $ Matrix 2 2 [0, 0 :+ (-1), 0 :+ 1, 0]
 evalOperator _ QCZ = return $ Matrix 2 2 [1, 0, 0, -1]
 evalOperator _ QCH = return $ Matrix 2 2 [1 / sqrt 2, 1 / sqrt 2, 1 / sqrt 2, -1 / sqrt 2]
 evalOperator _ (QCGate _ args body) = compileOperator args body
-
-evalOperator _ _ = undefined
+evalOperator _ qc = error $ "Not implemented: evalOperator for " ++ show qc
 
 compileOperator :: [Name] -> [QC] -> EvalT Operator
 compileOperator args body = foldl1 (<>) <$> sequenceA (evalOperator args <$> body)
@@ -122,4 +121,4 @@ arguments QCX = 1
 arguments QCY = 1
 arguments QCZ = 1
 arguments QCH = 1
-arguments _ = undefined
+arguments qc = error $ "Not implemented: arguments for " ++ show qc
