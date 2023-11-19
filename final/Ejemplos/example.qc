@@ -4,5 +4,5 @@ circuit First (0 -> a, 0 -> b, 0 -> c) {
 		y -> Y;
 		z -> Z;
 	};
-	a -> X -> Y -> Z
+	a -> X -> Y -> Z;
 }

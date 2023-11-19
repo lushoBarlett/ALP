@@ -61,42 +61,65 @@ expand names partialOps = do
   return $ foldr1 tensor fillMissing
 
 eval :: QC -> EvalT ()
-eval (QCCircuit _ preps body) = do
-  mapM_ eval preps
-  mapM_ eval body
-
-eval (QCPreparation n name) =
-  updateState $ \s -> tensorQBit s name $ qbitFromNumber n
-
-eval (QCOperation names qc) = do
-  op <- evalOperation names qc
-  updateState $ \s -> s { qbits = qbits s <> op }
-
+eval (QCCircuit _ preps body) = mapM_ eval preps >> evalSeq body
+eval (QCPreparation n name) = updateState $ \s -> tensorQBit s name $ qbitFromNumber n
 eval _ = undefined
 
-evalOperation :: [Name] -> QC -> EvalT Operator
-evalOperation names (QCArrow qc1 qc2) = do
-  op1 <- evalOperation names qc1
-  op2 <- evalOperation names qc2
+evalSeq :: [QC] -> EvalT ()
+evalSeq [] = return ()
+evalSeq ((QCOperation names qc):qcs) = do
+  op <- evalOperator names qc
+  updateState $ \s -> s { qbits = qbits s <> op }
+  evalSeq qcs
+evalSeq (gate@(QCGate name _ _):qcs) =
+  local (\env -> env { gates = Map.insert name gate (gates env) }) $ evalSeq qcs
+evalSeq (_:_) = undefined
+
+evalOperator :: [Name] -> QC -> EvalT Operator
+evalOperator names (QCArrow qc1 qc2) = do
+  op1 <- evalOperator names qc1
+  op2 <- evalOperator names qc2
   return $ op1 <> op2
 
-evalOperation names (QCTensors tensors) = do
+evalOperator names (QCTensors tensors) = do
   partialOps <- evalTensors names tensors
   expand names partialOps
 
-evalOperation _ (QCVariable name) = do
+evalOperator names (QCVariable name) = do
   env <- ask
   case Map.lookup name (gates env) of
     Nothing -> throwError $ "Variable " ++ name ++ " not found (in global scope, local is not implemented)"
-    Just qc -> evalOperation [] qc
+    Just qc -> evalOperator names qc
 
-evalOperation _ QCI = return $ Matrix 2 2 [1, 0, 0, 1]
-evalOperation _ QCX = return $ Matrix 2 2 [0, 1, 1, 0]
-evalOperation _ QCY = return $ Matrix 2 2 [0, 0 :+ (-1), 0 :+ 1, 0]
-evalOperation _ QCZ = return $ Matrix 2 2 [1, 0, 0, -1]
-evalOperation _ QCH = return $ Matrix 2 2 [1 / sqrt 2, 1 / sqrt 2, 1 / sqrt 2, -1 / sqrt 2]
+evalOperator _ (QCOperation names qc) = evalOperator names qc
+evalOperator _ QCI = return $ Matrix 2 2 [1, 0, 0, 1]
+evalOperator _ QCX = return $ Matrix 2 2 [0, 1, 1, 0]
+evalOperator _ QCY = return $ Matrix 2 2 [0, 0 :+ (-1), 0 :+ 1, 0]
+evalOperator _ QCZ = return $ Matrix 2 2 [1, 0, 0, -1]
+evalOperator _ QCH = return $ Matrix 2 2 [1 / sqrt 2, 1 / sqrt 2, 1 / sqrt 2, -1 / sqrt 2]
+evalOperator _ (QCGate _ args body) = compileOperator args body
 
-evalOperation _ _ = undefined
+evalOperator _ _ = undefined
+
+compileOperator :: [Name] -> [QC] -> EvalT Operator
+compileOperator args body = foldl1 (<>) <$> sequenceA (evalOperator args <$> body)
 
 evalTensors :: [Name] -> [QC] -> EvalT [Operator]
-evalTensors names = mapM (evalOperation names)
+evalTensors _ [] = throwError "Qbit/Operator mismatch"
+evalTensors names (t:tensors) = do
+  let n = arguments t
+  if n > length names
+    then throwError "Qbit/Operator mismatch"
+    else do
+      op <- evalOperator (take n names) t
+      ops <- evalTensors (drop n names) tensors
+      return $ op : ops
+
+arguments :: QC -> Int
+arguments (QCGate _ names _) = length names
+arguments QCI = 1
+arguments QCX = 1
+arguments QCY = 1
+arguments QCZ = 1
+arguments QCH = 1
+arguments _ = undefined
