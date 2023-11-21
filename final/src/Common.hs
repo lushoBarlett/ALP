@@ -8,6 +8,7 @@ module Common (
   showState,
   Matrix(..),
   eye,
+  tensoreye,
   (.>),
   (<.),
   (<+>),
@@ -16,6 +17,8 @@ module Common (
   addGate,
   tensorQBit,
   qbitFromNumber,
+  qbitStateFromBase,
+  allBases
 ) where
 
 import Data.Complex (Complex(..))
@@ -40,6 +43,12 @@ data Matrix a = Matrix {
   cols :: Int,
   asList :: [a]
 }
+instance Show a => Show (Matrix a) where
+  show (Matrix r c m) = unlines $ showRow <$> indices r
+    where showRow i = unwords $ show <$> row (Matrix r c m) i
+
+instance Eq a => Eq (Matrix a) where
+  m1 == m2 = rows m1 == rows m2 && cols m1 == cols m2 && asList m1 == asList m2
 
 indices :: Int -> [Int]
 indices n = [0..n - 1]
@@ -52,6 +61,9 @@ col (Matrix r c m) j = [m !! (i * c + j) | i <- indices r]
 
 eye :: Num a => Int -> Matrix a
 eye n = Matrix n n $ [if i == j then 1 else 0 | i <- indices n, j <- indices n]
+
+tensoreye :: Num a => Int -> Matrix a
+tensoreye n = eye $ 2 ^ n
 
 instance Functor Matrix where
   fmap f (Matrix r c m) = Matrix r c $ fmap f m
@@ -129,3 +141,13 @@ qbitFromNumber :: Int -> QBit
 qbitFromNumber 0 = Matrix 2 1 [1, 0]
 qbitFromNumber 1 = Matrix 2 1 [0, 1]
 qbitFromNumber _ = error "qbitFromNumber: number must be 0 or 1"
+
+qbitStateFromBase :: [Int] -> QBit
+qbitStateFromBase values = foldl1 tensor (qbitFromNumber <$> values)
+
+allBases :: (Eq t, Num t, Num a) => t -> [[a]]
+allBases 0 = return []
+allBases n = do
+  b <- [0, 1]
+  bs <- allBases (n - 1)
+  return $ b : bs

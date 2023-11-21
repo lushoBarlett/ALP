@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Eval(eval, EvalT(..), defaultRunEnv, defaultState, run) where
 
-import Common (QC(..), State(..), Environment(..), Matrix(..), tensorQBit, qbitFromNumber, tensor, eye, Operator, Name)
+import Common (QC(..), State(..), Environment(..), Matrix(..), tensorQBit, qbitFromNumber, tensor, tensoreye, Operator, Name)
 import Control.Monad.State (MonadState(..), StateT(..))
 import Control.Monad.Reader (MonadReader(..), ReaderT(..))
 import Control.Monad.Except (MonadError(..), ExceptT(..), runExceptT)
@@ -44,21 +44,82 @@ updateState f = do
   s <- get
   put $ f s
 
+-- conceputalmente lo que tenemos es
+-- Q' subset de Q
+-- podemos computar una matriz A aplicable a Q'
+-- pero no siempre podemos expandir A a una matriz B aplicable a Q
+-- pues el producto tensorial no es conmutativo
+-- por ejemplo, si Q = [q1, q2, q3, q4] y Q' = [q1,q3], entonces si A debe ser
+-- computada a partir de una compuerta definida por el usuario, estamos al horno
+
+-- lo correcto sería hacer los swaps de qbits necesarios para que Q' sea un
+-- prefijo de Q, y luego aplicar la matriz A tensorial con las identidades.
+
+-- Ineficiente, pero correcto.
+
+-- La otra es expandir la compuerta... pero no está buena esa idea me parece
+
+-- swap i j n es la matriz que cambia las siguientes columnas
+-- |..2^i..2^j..> -> |..2^j..2^i..>
+-- |.. 1 .. 0 ..> -> |.. 0 .. 1 ..>
+-- |.. 0 .. 1 ..> -> |.. 1 .. 0 ..>
+-- |v> -> |v>
+swap :: Int -> Int -> Int -> Operator
+
+swap i j n | i > j     = swap j i n
+
+swap i j n = Matrix p p $ concat [row k | k <- indices]
+  where
+    p = 2 ^ n
+    indices = [0 .. p - 1]
+
+    row k | bitOn k i && bitOff k j = row' (k + 2 ^ j - 2 ^ i)
+          | bitOff k i && bitOn k j = row' (k - 2 ^ j + 2 ^ i)
+          | otherwise  = row' k
+
+    row' k = [if z == k then 1 else 0 | z <- indices]
+
+    bitOn k b = (k `div` 2 ^ b) `mod` 2 == 1
+    bitOff k b = not $ bitOn k b
+
+slice :: Int -> Int -> [a] -> [a]
+slice i j xs = take (j - i) $ drop i xs
+
+putIth :: Int -> Name -> [Name] -> ([Name], Operator)
+putIth i name names = case elemIndex name names of
+  Nothing -> error $ "putIth: name not found " ++ name ++ " in " ++ show names
+  Just j -> if i < j
+    then (take (i - 1) names ++ jth ++ slice (i+1) j names ++ ith ++ drop (j + 1) names, sm)
+    else (take (j - 1) names ++ ith ++ slice (j+1) i names ++ jth ++ drop (i + 1) names, sm)
+      where
+        n = length names
+        sm = swap i j n
+        ith = [names !! i]
+        jth = [names !! j]
+
+-- move the qbits involved in an operation to the front of the list, and return the swap operator
+swapToPrefix :: [(Int,Name)] -> [Name] -> ([Name], Operator)
+swapToPrefix [] allnames = (allnames, tensoreye $ length allnames)
+swapToPrefix ((i,name):names) allnames = (finalnames', sm' <> sm) -- flipped
+  where
+    (allnames', sm) = putIth i name allnames
+    (finalnames', sm') = swapToPrefix names allnames'
+
 expand :: [Name] -> [Operator] -> EvalT Operator
 expand names partialOps = do
   s <- get
 
   let allnames = qbitnames s
 
-  let nameInPartialOps name = elemIndex name names
+  let (_, swapop) = swapToPrefix (zip [0..] names) allnames
 
-  let decideOperator name = case nameInPartialOps name of
-        Nothing -> eye 2
-        Just i -> partialOps !! i
+  -- tensor with leftover identities
+  let leftover = tensoreye (length allnames - length names)
 
-  let fillMissing = [decideOperator name | name <- allnames]
+  let op = foldr1 tensor (partialOps ++ [leftover])
 
-  return $ foldr1 tensor fillMissing
+  -- swap before and after you apply the operatoz
+  return $ swapop <> op <> swapop
 
 resolveVariable :: Name -> EvalT QC
 resolveVariable name = do
