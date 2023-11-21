@@ -60,6 +60,16 @@ expand names partialOps = do
 
   return $ foldr1 tensor fillMissing
 
+resolveVariable :: Name -> EvalT QC
+resolveVariable name = do
+  env <- ask
+  case Map.lookup name (gates env) of
+    Nothing -> throwError $ "Variable " ++ name ++ " not found (in global scope, local is not implemented)"
+    Just qc -> return qc
+
+-- NOTE: because '->' is basically flipped matrix multiplication,
+-- we flip several things here to make it work.
+
 eval :: QC -> EvalT ()
 eval (QCCircuit _ preps body) = mapM_ eval preps >> evalSeq body
 eval (QCPreparation n name) = updateState $ \s -> tensorQBit s name $ qbitFromNumber n
@@ -69,7 +79,10 @@ evalSeq :: [QC] -> EvalT ()
 evalSeq [] = return ()
 evalSeq ((QCOperation names qc):qcs) = do
   op <- evalOperator names qc
-  updateState $ \s -> s { qbits = qbits s <> op }
+  updateState $ \s -> s {
+    -- flipped
+    qbits = op <> qbits s
+  }
   evalSeq qcs
 evalSeq (gate@(QCGate name _ _):qcs) =
   local (\env -> env { gates = Map.insert name gate (gates env) }) $ evalSeq qcs
@@ -79,17 +92,14 @@ evalOperator :: [Name] -> QC -> EvalT Operator
 evalOperator names (QCArrow qc1 qc2) = do
   op1 <- evalOperator names qc1
   op2 <- evalOperator names qc2
-  return $ op1 <> op2
+  -- flipped
+  return $ op2 <> op1
 
 evalOperator names (QCTensors tensors) = do
   partialOps <- evalTensors names tensors
   expand names partialOps
 
-evalOperator names (QCVariable name) = do
-  env <- ask
-  case Map.lookup name (gates env) of
-    Nothing -> throwError $ "Variable " ++ name ++ " not found (in global scope, local is not implemented)"
-    Just qc -> evalOperator names qc
+evalOperator names (QCVariable name) = resolveVariable name >>= evalOperator names
 
 evalOperator _ (QCOperation names qc) = evalOperator names qc
 evalOperator _ QCI = return $ Matrix 2 2 [1, 0, 0, 1]
@@ -101,14 +111,23 @@ evalOperator _ (QCGate _ args body) = compileOperator args body
 evalOperator _ qc = error $ "Not implemented: evalOperator for " ++ show qc
 
 compileOperator :: [Name] -> [QC] -> EvalT Operator
-compileOperator args body = foldl1 (<>) <$> sequenceA (evalOperator args <$> body)
+compileOperator args body = foldl1 (<>) <$> reversedChain
+  where
+    evalChain = sequenceA (evalOperator args <$> body)
+    -- flipped
+    reversedChain = reverse <$> evalChain
+
+mismatch :: EvalT a
+mismatch = throwError "Qbit/Operator mismatch"
 
 evalTensors :: [Name] -> [QC] -> EvalT [Operator]
-evalTensors _ [] = throwError "Qbit/Operator mismatch"
-evalTensors names (t:tensors) = do
+evalTensors []    []                          = return []
+evalTensors (_:_) []                          = mismatch
+evalTensors names ((QCVariable name):tensors) = resolveVariable name >>= evalTensors names . (:tensors)
+evalTensors names (t:tensors)                 = do
   let n = arguments t
   if n > length names
-    then throwError "Qbit/Operator mismatch"
+    then mismatch
     else do
       op <- evalOperator (take n names) t
       ops <- evalTensors (drop n names) tensors

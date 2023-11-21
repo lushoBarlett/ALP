@@ -77,7 +77,7 @@ infixl 7 <.
 instance Num a => Semigroup (Matrix a) where
   m1 <> m2 =
     if cols m1 /= rows m2
-    then error "Matrix dimensions do not match"
+    then error $ "Matrix dimensions do not match, attempted: " ++ show (rows m1, cols m1) ++ " <> " ++ show (rows m2, cols m2)
     else Matrix (rows m1) (cols m2) $ do
       i <- indices $ rows m1
       j <- indices $ cols m2
