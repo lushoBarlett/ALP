@@ -24,6 +24,7 @@ module Common (
 import Data.Complex (Complex(..))
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import qualified Debug.Trace as DBG
 
 type Name = String
 
@@ -101,6 +102,7 @@ tensor (Matrix r1 c1 m1) (Matrix r2 c2 m2) = Matrix (r1 * r2) (c1 * c2) $ do
   j <- indices c1
   k <- indices r2
   l <- indices c2
+  -- doesnt workkkk
   return $ m1 !! (i * c1 + j) * m2 !! (k * c2 + l)
 
 type QBit = Matrix (Complex Double)

@@ -8,6 +8,7 @@ import Control.Monad.Except (MonadError(..), ExceptT(..), runExceptT)
 import Data.Complex (Complex(..))
 import qualified Data.Map as Map
 import Data.List (elemIndex)
+import qualified Debug.Trace as DBG
 
 newtype EvalT a = EvalT {
   runEvalT :: ReaderT Environment (StateT State (ExceptT String IO)) a
@@ -88,14 +89,16 @@ slice i j xs = take (j - i) $ drop i xs
 putIth :: Int -> Name -> [Name] -> ([Name], Operator)
 putIth i name names = case elemIndex name names of
   Nothing -> error $ "putIth: name not found " ++ name ++ " in " ++ show names
-  Just j -> if i < j
-    then (take (i - 1) names ++ jth ++ slice (i+1) j names ++ ith ++ drop (j + 1) names, sm)
-    else (take (j - 1) names ++ ith ++ slice (j+1) i names ++ jth ++ drop (i + 1) names, sm)
-      where
-        n = length names
-        sm = swap i j n
-        ith = [names !! i]
-        jth = [names !! j]
+  Just j -> if i == j
+    then (names, tensoreye n)
+    else if i < j
+      then (take i names ++ jth ++ slice (i + 1) j names ++ ith ++ drop (j + 1) names, sm)
+      else (take j names ++ ith ++ slice (j + 1) i names ++ jth ++ drop (i + 1) names, sm)
+    where
+      n = length names
+      sm = swap i j n
+      ith = [names !! i]
+      jth = [names !! j]
 
 -- move the qbits involved in an operation to the front of the list, and return the swap operator
 swapToPrefix :: [(Int,Name)] -> [Name] -> ([Name], Operator)
@@ -116,9 +119,13 @@ expand names partialOps = do
   -- tensor with leftover identities
   let leftover = tensoreye (length allnames - length names)
 
+  DBG.traceM $ show leftover
+
   let op = foldr1 tensor (partialOps ++ [leftover])
 
-  -- swap before and after you apply the operatoz
+  DBG.traceM $ show op
+
+  -- swap before and after you apply the operator
   return $ swapop <> op <> swapop
 
 resolveVariable :: Name -> EvalT QC
