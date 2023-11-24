@@ -8,6 +8,7 @@ import Control.Monad.Except (MonadError(..), ExceptT(..), runExceptT)
 import Data.Complex (Complex(..))
 import qualified Data.Map as Map
 import Data.List (elemIndex)
+import qualified Debug.Trace as Trace
 
 newtype EvalT a = EvalT {
   runEvalT :: ReaderT Environment (StateT State (ExceptT String IO)) a
@@ -68,7 +69,7 @@ swap :: Int -> Int -> Int -> Operator
 
 swap i j n | i > j     = swap j i n
 
-swap i j n = Matrix p p $ concat [row k | k <- indices]
+swap i j n = Trace.trace ("swap " ++ show i ++ " " ++ show j) $ Matrix p p $ concat [row k | k <- indices]
   where
     p = 2 ^ n
     indices = [0 .. p - 1]
@@ -95,7 +96,9 @@ putIth i name names = case elemIndex name names of
       else (take j names ++ ith ++ slice (j + 1) i names ++ jth ++ drop (i + 1) names, sm)
     where
       n = length names
-      sm = swap i j n
+      -- leftmost qbit is the most significant means its index is its complement significance
+      -- because swap works with qbit significances, we complement the indices
+      sm = swap (n - i - 1) (n - j - 1) n
       ith = [names !! i]
       jth = [names !! j]
 
@@ -114,6 +117,8 @@ expand names partialOps = do
   let allnames = qbitnames s
 
   let (_, swapop) = swapToPrefix (zip [0..] names) allnames
+
+  Trace.traceM $ show swapop
 
   -- tensor with leftover identities
   let leftover = tensoreye (length allnames - length names)

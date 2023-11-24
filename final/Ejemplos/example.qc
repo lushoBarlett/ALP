@@ -1,3 +1,3 @@
 circuit First (0 -> a, 0 -> b, 0 -> c) {
-	b -> H;
+	a,b,c -> H | X;
 }
