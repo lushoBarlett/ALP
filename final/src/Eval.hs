@@ -8,7 +8,6 @@ import Control.Monad.Except (MonadError(..), ExceptT(..), runExceptT)
 import Data.Complex (Complex(..))
 import qualified Data.Map as Map
 import Data.List (elemIndex)
-import qualified Debug.Trace as DBG
 
 newtype EvalT a = EvalT {
   runEvalT :: ReaderT Environment (StateT State (ExceptT String IO)) a
@@ -119,11 +118,7 @@ expand names partialOps = do
   -- tensor with leftover identities
   let leftover = tensoreye (length allnames - length names)
 
-  DBG.traceM $ show leftover
-
   let op = foldr1 tensor (partialOps ++ [leftover])
-
-  DBG.traceM $ show op
 
   -- swap before and after you apply the operator
   return $ swapop <> op <> swapop

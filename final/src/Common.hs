@@ -24,7 +24,6 @@ module Common (
 import Data.Complex (Complex(..))
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import qualified Debug.Trace as DBG
 
 type Name = String
 
@@ -98,11 +97,16 @@ instance Num a => Semigroup (Matrix a) where
 
 tensor :: Num a => Matrix a -> Matrix a -> Matrix a
 tensor (Matrix r1 c1 m1) (Matrix r2 c2 m2) = Matrix (r1 * r2) (c1 * c2) $ do
+
+  -- row of the first and second matrix
   i <- indices r1
-  j <- indices c1
   k <- indices r2
+
+  -- column of the first and second matrix
+  j <- indices c1
   l <- indices c2
-  -- doesnt workkkk
+
+  -- so that the order of the elements is the same as a list
   return $ m1 !! (i * c1 + j) * m2 !! (k * c2 + l)
 
 type QBit = Matrix (Complex Double)
