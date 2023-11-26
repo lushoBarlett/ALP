@@ -5,9 +5,10 @@ import Common (QC(..), State(..), Environment(..), Matrix(..), tensorQBit, qbitF
 import Control.Monad.State (MonadState(..), StateT(..))
 import Control.Monad.Reader (MonadReader(..), ReaderT(..))
 import Control.Monad.Except (MonadError(..), ExceptT(..), runExceptT)
-import Data.Complex (Complex(..))
+import Data.Complex (Complex(..), realPart)
 import qualified Data.Map as Map
 import Data.List (elemIndex)
+import qualified Debug.Trace as Trace
 
 newtype EvalT a = EvalT {
   runEvalT :: ReaderT Environment (StateT State (ExceptT String IO)) a
@@ -173,7 +174,13 @@ evalOperator _ QCX = return $ Matrix 2 2 [0, 1, 1, 0]
 evalOperator _ QCY = return $ Matrix 2 2 [0, 0 :+ (-1), 0 :+ 1, 0]
 evalOperator _ QCZ = return $ Matrix 2 2 [1, 0, 0, -1]
 evalOperator _ QCH = return $ Matrix 2 2 [1 / sqrt 2, 1 / sqrt 2, 1 / sqrt 2, -1 / sqrt 2]
-evalOperator _ (QCGate _ args body) = compileOperator args body
+evalOperator _ (QCGate name args body) = do
+  s <- get
+  put $ s { qbitnames = args } -- ! FIXME: ugly hack, `expand` reads the state for the names
+  op <- compileOperator args body
+  put s -- restore
+  return op
+
 evalOperator _ qc = error $ "Not implemented: evalOperator for " ++ show qc
 
 compileOperator :: [Name] -> [QC] -> EvalT Operator
