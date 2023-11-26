@@ -8,6 +8,7 @@ module Common (
   showState,
   Matrix(..),
   eye,
+  transpose,
   tensoreye,
   (.>),
   (<.),
@@ -58,6 +59,12 @@ row (Matrix _ c m) i = take c $ drop (i * c) m
 
 col :: Matrix a -> Int -> [a]
 col (Matrix r c m) j = [m !! (i * c + j) | i <- indices r]
+
+transpose :: Matrix a -> Matrix a
+transpose (Matrix r c m) = Matrix c r $ do
+  j <- indices c
+  i <- indices r
+  return $ m !! (i * c + j)
 
 eye :: Num a => Int -> Matrix a
 eye n = Matrix n n $ [if i == j then 1 else 0 | i <- indices n, j <- indices n]

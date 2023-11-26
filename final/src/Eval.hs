@@ -1,14 +1,13 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Eval(eval, EvalT(..), defaultRunEnv, defaultState, run) where
 
-import Common (QC(..), State(..), Environment(..), Matrix(..), tensorQBit, qbitFromNumber, tensor, tensoreye, Operator, Name)
+import Common (QC(..), State(..), Environment(..), Matrix(..), tensorQBit, qbitFromNumber, tensor, tensoreye, transpose, Operator, Name)
 import Control.Monad.State (MonadState(..), StateT(..))
 import Control.Monad.Reader (MonadReader(..), ReaderT(..))
 import Control.Monad.Except (MonadError(..), ExceptT(..), runExceptT)
 import Data.Complex (Complex(..))
 import qualified Data.Map as Map
 import Data.List (elemIndex)
-import qualified Debug.Trace as Trace
 
 newtype EvalT a = EvalT {
   runEvalT :: ReaderT Environment (StateT State (ExceptT String IO)) a
@@ -69,7 +68,7 @@ swap :: Int -> Int -> Int -> Operator
 
 swap i j n | i > j     = swap j i n
 
-swap i j n = Trace.trace ("swap " ++ show i ++ " " ++ show j) $ Matrix p p $ concat [row k | k <- indices]
+swap i j n = Matrix p p $ concat [row k | k <- indices]
   where
     p = 2 ^ n
     indices = [0 .. p - 1]
@@ -117,8 +116,7 @@ expand names partialOps = do
   let allnames = qbitnames s
 
   let (_, swapop) = swapToPrefix (zip [0..] names) allnames
-
-  Trace.traceM $ show swapop
+  let swapinv = transpose swapop
 
   -- tensor with leftover identities
   let leftover = tensoreye (length allnames - length names)
@@ -126,7 +124,7 @@ expand names partialOps = do
   let op = foldr1 tensor (partialOps ++ [leftover])
 
   -- swap before and after you apply the operator
-  return $ swapop <> op <> swapop
+  return $ swapinv <> op <> swapop
 
 resolveVariable :: Name -> EvalT QC
 resolveVariable name = do

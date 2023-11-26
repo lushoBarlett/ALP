@@ -23,13 +23,13 @@ main = runInputT defaultSettings loop
 
 loop :: InputT IO ()
 loop = do
-  input <- getInputLine "λ "
+  input <- getInputLine "λ (auto-execute-file-mode) "
   case input of
     Nothing -> return ()
     Just s -> do
       if length (words s) == 1
         then lift $ parseAndEval s
-        else executeCommand s
+        else executeCommand ":f Ejemplos/example.qc" -- auto execute file for quick testing
       loop
 
 executeCommand :: String -> InputT IO ()
