@@ -1,6 +1,6 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.35.1.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -27,8 +27,10 @@ library
   exposed-modules:
       Common
       Eval
+      Matrix
       Parser
       PrettyPrint
+      QBit
   other-modules:
       Paths_final
   autogen-modules:

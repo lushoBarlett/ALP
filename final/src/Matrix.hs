@@ -2,7 +2,13 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 
-module Matrix where
+module Matrix (
+  Matrix(..),
+  RowMatrix(..),
+  ColMatrix(..),
+  fromRowToCol,
+  fromColToRow
+) where
 
 dot :: Num a => [a] -> [a] -> a
 dot as bs = sum $ zipWith (*) as bs
@@ -48,7 +54,7 @@ instance (Num a, Show a, Eq a) => Matrix (RowMatrix a) a where
   rows = rmrows
   cols = rmcols
   (RowMatrix _ c as) ! (i, j) = as !! (i * c + j)
-  transpose m@(RowMatrix r c as) = RowMatrix c r $ do
+  transpose m@(RowMatrix r c _) = RowMatrix c r $ do
     j <- [0..c-1]
     i <- [0..r-1]
     return $ m ! (i,j)
@@ -79,7 +85,7 @@ instance (Num a, Show a, Eq a) => Matrix (ColMatrix a) a where
   rows = cmrows
   cols = cmcols
   (ColMatrix _ c as) ! (i, j) = as !! (j * c + i)
-  transpose m@(ColMatrix r c as) = ColMatrix c r $ do
+  transpose m@(ColMatrix r c _) = ColMatrix c r $ do
     j <- [0..c-1]
     i <- [0..r-1]
     return $ m ! (i,j)
@@ -101,6 +107,9 @@ instance (Num a, Show a, Eq a) => Show (ColMatrix a) where
 instance (Num a, Show a, Eq a) => Eq (RowMatrix a) where
   (==) = _eq
 
+instance (Num a, Show a, Eq a) => Eq (ColMatrix a) where
+  (==) = _eq
+
 instance Functor RowMatrix where
   fmap f (RowMatrix r c as) = RowMatrix r c $ fmap f as
 
@@ -108,13 +117,13 @@ instance Functor ColMatrix where
   fmap f (ColMatrix r c as) = ColMatrix r c $ fmap f as
 
 fromRowToCol :: (Num a, Show a, Eq a) => RowMatrix a -> ColMatrix a
-fromRowToCol m@(RowMatrix r c as) = ColMatrix r c $ do
+fromRowToCol m@(RowMatrix r c _) = ColMatrix r c $ do
   j <- [0..c-1]
   i <- [0..r-1]
   return $ m ! (i,j)
 
 fromColToRow :: (Num a, Show a, Eq a) => ColMatrix a -> RowMatrix a
-fromColToRow m@(ColMatrix r c as) = RowMatrix r c $ do
+fromColToRow m@(ColMatrix r c _) = RowMatrix r c $ do
   i <- [0..r-1]
   j <- [0..c-1]
   return $ m ! (i,j)

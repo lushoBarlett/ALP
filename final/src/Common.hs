@@ -1,24 +1,23 @@
 module Common (
   Name,
-  QBit,
   Operator,
   QC(..),
   State(..),
   Environment(..),
-  showState,
-  eye,
+  linearTransformation,
   tensoreye,
   addCircuit,
   addGate,
+  showState,
   tensorQBit,
-  qbitFromNumber,
-  qbitStateFromBase,
-  allBases
+  castFromInt,
+  castFromReal
 ) where
 
 import Data.Complex (Complex(..))
-import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Matrix (Matrix(..), ColMatrix(..))
+import QBit (QBitBase(..), allBases, toColMatrix, fromCols)
 
 type Name = String
 
@@ -33,21 +32,18 @@ data QC
   | QCI | QCX | QCY | QCZ | QCH
   deriving Show
 
-indices :: Int -> [Int]
-indices n = [0..n - 1]
+linearTransformation :: Int -> (QBitBase -> QBitBase) -> ColMatrix Int
+linearTransformation n f = fromCols $ toColMatrix . f <$> allBases n
 
-eye :: Num a => Int -> RowMatrix a
-eye n = Matrix n n $ [if i == j then 1 else 0 | i <- indices n, j <- indices n]
+tensoreye :: Int -> ColMatrix Int
+tensoreye n = linearTransformation n id
 
-tensoreye :: Num a => Int -> RowMatrix a
-tensoreye n = eye $ 2 ^ n
-
-type QBit = Matrix (Complex Double)
+type QBit = ColMatrix (Complex Double)
 type Operator = QBit
 
 data Environment = Environment {
-  circuits :: Map Name QC,
-  gates :: Map Name QC
+  circuits :: Map.Map Name QC,
+  gates :: Map.Map Name QC
 }
 
 -- supposed to be a column vector
@@ -57,7 +53,7 @@ data State = State {
 }
 
 showState :: State -> String
-showState state = concat $ ppcomplex <$> asList (qbits state)
+showState state = concat $ ppcomplex <$> cmAsList (qbits state)
   where ppcomplex (r :+ i) = concat [show r, " + ", show i, "i\n"]
 
 addCircuit :: Name -> QC -> Environment -> Environment
@@ -76,14 +72,8 @@ tensorQBit s1 name qbit = State {
   qbitnames = qbitnames s1 ++ [name]
 }
 
-fromColumns :: Num a => [[a]] -> Matrix a
-fromColumns columns = Matrix n n $ do
-  i <- indices n
-  j <- indices n
-  return $ columns !! j !! i
-  where n = length columns
+castFromInt :: (RealFloat a, Functor f) => f Int -> f (Complex a)
+castFromInt = fmap (:+ 0) . fmap fromIntegral
 
-toColumn :: QBit -> [Complex Double]
-toColumn qbit = asList $ transpose qbit
-
-fromLinearTransformation f n = fromColumns $ toColumn . qbitStateFromBase . f <$> allBases n
+castFromReal :: (RealFloat a, Functor f) => f a -> f (Complex a)
+castFromReal = fmap (:+ 0)

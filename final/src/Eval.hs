@@ -1,14 +1,16 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Eval(eval, EvalT(..), defaultRunEnv, defaultState, run) where
 
-import Common (QC(..), State(..), Environment(..), Matrix(..), tensorQBit, qbitFromNumber, tensor, tensoreye, transpose, Operator, Name)
+import Common (QC(..), State(..), Environment(..), tensorQBit, tensoreye, Operator, Name, linearTransformation, castFromInt, castFromReal)
+import Matrix (Matrix(..), RowMatrix(..), fromRowToCol)
+import QBit (qbitFromNumber, toColMatrix)
 import Control.Monad.State (MonadState(..), StateT(..))
 import Control.Monad.Reader (MonadReader(..), ReaderT(..))
 import Control.Monad.Except (MonadError(..), ExceptT(..), runExceptT)
-import Data.Complex (Complex(..), realPart)
+import Data.Complex (Complex(..))
 import qualified Data.Map as Map
 import Data.List (elemIndex)
-import qualified Debug.Trace as Trace
+import Data.Bits (testBit, setBit, clearBit)
 
 newtype EvalT a = EvalT {
   runEvalT :: ReaderT Environment (StateT State (ExceptT String IO)) a
@@ -36,7 +38,7 @@ defaultRunEnv = Environment {
 
 defaultState :: State
 defaultState = State {
-  qbits = Matrix 1 1 [1],
+  qbits = fromRowToCol $ RowMatrix 1 1 [1],
   qbitnames = []
 }
 
@@ -66,22 +68,11 @@ updateState f = do
 -- |.. 0 .. 1 ..> -> |.. 1 .. 0 ..>
 -- |v> -> |v>
 swap :: Int -> Int -> Int -> Operator
-
-swap i j n | i > j     = swap j i n
-
-swap i j n = Matrix p p $ concat [row k | k <- indices]
+swap i j n = castFromInt $ linearTransformation n f
   where
-    p = 2 ^ n
-    indices = [0 .. p - 1]
-
-    row k | bitOn k i && bitOff k j = row' (k + 2 ^ j - 2 ^ i)
-          | bitOff k i && bitOn k j = row' (k - 2 ^ j + 2 ^ i)
-          | otherwise  = row' k
-
-    row' k = [if z == k then 1 else 0 | z <- indices]
-
-    bitOn k b = (k `div` 2 ^ b) `mod` 2 == 1
-    bitOff k b = not $ bitOn k b
+    f base | testBit base i && not (testBit base j) = setBit (clearBit base i) j
+           | not (testBit base i) && testBit base j = setBit (clearBit base j) i
+           | otherwise = base
 
 slice :: Int -> Int -> [a] -> [a]
 slice i j xs = take (j - i) $ drop i xs
@@ -90,7 +81,7 @@ putIth :: Int -> Name -> [Name] -> ([Name], Operator)
 putIth i name names = case elemIndex name names of
   Nothing -> error $ "putIth: name not found " ++ name ++ " in " ++ show names
   Just j -> if i == j
-    then (names, tensoreye n)
+    then (names, castFromInt $ tensoreye n)
     else if i < j
       then (take i names ++ jth ++ slice (i + 1) j names ++ ith ++ drop (j + 1) names, sm)
       else (take j names ++ ith ++ slice (j + 1) i names ++ jth ++ drop (i + 1) names, sm)
@@ -104,7 +95,7 @@ putIth i name names = case elemIndex name names of
 
 -- move the qbits involved in an operation to the front of the list, and return the swap operator
 swapToPrefix :: [(Int,Name)] -> [Name] -> ([Name], Operator)
-swapToPrefix [] allnames = (allnames, tensoreye $ length allnames)
+swapToPrefix [] allnames = (allnames, castFromInt $ tensoreye $ length allnames)
 swapToPrefix ((i,name):names) allnames = (finalnames', sm' <> sm) -- flipped
   where
     (allnames', sm) = putIth i name allnames
@@ -120,7 +111,7 @@ expand names partialOps = do
   let swapinv = transpose swapop
 
   -- tensor with leftover identities
-  let leftover = tensoreye (length allnames - length names)
+  let leftover = castFromInt $ tensoreye (length allnames - length names)
 
   let op = foldr1 tensor (partialOps ++ [leftover])
 
@@ -139,7 +130,7 @@ resolveVariable name = do
 
 eval :: QC -> EvalT ()
 eval (QCCircuit _ preps body) = mapM_ eval preps >> evalSeq body
-eval (QCPreparation n name) = updateState $ \s -> tensorQBit s name $ qbitFromNumber n
+eval (QCPreparation n name) = updateState $ \s -> tensorQBit s name $ castFromInt $ toColMatrix $ qbitFromNumber n
 eval _ = undefined
 
 evalSeq :: [QC] -> EvalT ()
@@ -169,12 +160,12 @@ evalOperator names (QCTensors tensors) = do
 evalOperator names (QCVariable name) = resolveVariable name >>= evalOperator names
 
 evalOperator _ (QCOperation names qc) = evalOperator names qc
-evalOperator _ QCI = return $ Matrix 2 2 [1, 0, 0, 1]
-evalOperator _ QCX = return $ Matrix 2 2 [0, 1, 1, 0]
-evalOperator _ QCY = return $ Matrix 2 2 [0, 0 :+ (-1), 0 :+ 1, 0]
-evalOperator _ QCZ = return $ Matrix 2 2 [1, 0, 0, -1]
-evalOperator _ QCH = return $ Matrix 2 2 [1 / sqrt 2, 1 / sqrt 2, 1 / sqrt 2, -1 / sqrt 2]
-evalOperator _ (QCGate name args body) = do
+evalOperator _ QCI = return $  castFromInt $ fromRowToCol $ RowMatrix 2 2 [1, 0, 0, 1]
+evalOperator _ QCX = return $  castFromInt $ fromRowToCol $ RowMatrix 2 2 [0, 1, 1, 0]
+evalOperator _ QCY = return $           id $ fromRowToCol $ RowMatrix 2 2 [0, 0 :+ (-1), 0 :+ 1, 0]
+evalOperator _ QCZ = return $  castFromInt $ fromRowToCol $ RowMatrix 2 2 [1, 0, 0, -1]
+evalOperator _ QCH = return $ castFromReal $ fromRowToCol $ RowMatrix 2 2 [1 / sqrt 2, 1 / sqrt 2, 1 / sqrt 2, -1 / sqrt 2]
+evalOperator _ (QCGate _ args body) = do
   s <- get
   put $ s { qbitnames = args } -- ! FIXME: ugly hack, `expand` reads the state for the names
   op <- compileOperator args body
