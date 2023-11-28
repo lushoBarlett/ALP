@@ -43,7 +43,7 @@ data RowMatrix a = RowMatrix {
 
 instance (Num a, Show a, Eq a) => Semigroup (RowMatrix a) where
   m1 <> m2 = if cols m1 /= rows m2
-    then error "incompatible dimensions"
+    then error $ "incompatible dimensions " ++ show (cols m1) ++ " " ++ show (rows m2)
     else RowMatrix (rows m1) (cols m2) $ do
       i <- [0..(rows m1) - 1]
       j <- [0..(cols m2) - 1]
@@ -74,7 +74,7 @@ data ColMatrix a = ColMatrix {
 
 instance (Num a, Show a, Eq a) => Semigroup (ColMatrix a) where
   m1 <> m2 = if cols m1 /= rows m2
-    then error "incompatible dimensions"
+    then error $ "incompatible dimensions " ++ show (cols m1) ++ " " ++ show (rows m2)
     else ColMatrix (rows m1) (cols m2) $ do
       i <- [0..(rows m1) - 1]
       j <- [0..(cols m2) - 1]

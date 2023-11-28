@@ -46,9 +46,9 @@ qbitFromNumber _ = error "qbitFromNumber: number must be 0 or 1"
 allBases :: Int -> [QBitBase]
 allBases n = [QBitBase i n | i <- [0..2^n-1]]
 
-toColMatrix :: QBitBase -> ColMatrix Int
-toColMatrix b = ColMatrix (2^tensorDimension b) 1 $ [oz i | i <- [0..2^(tensorDimension b)-1]]
+toColMatrix :: Num a => QBitBase -> ColMatrix a
+toColMatrix b = ColMatrix (2^tensorDimension b) 1 $ [oz i | i <- [0..2^tensorDimension b - 1]]
   where oz i = if baseValueRepr b == i then 1 else 0
 
-fromCols :: [ColMatrix Int] -> ColMatrix Int
+fromCols :: [ColMatrix a] -> ColMatrix a
 fromCols cs = ColMatrix (cmrows $ head cs) (length cs) $ concat $ cmAsList <$> cs

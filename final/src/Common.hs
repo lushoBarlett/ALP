@@ -34,11 +34,11 @@ data QC
   | QCI | QCX | QCY | QCZ | QCH
   deriving Show
 
-linearTransformation :: Int -> (QBitBase -> QBitBase) -> ColMatrix Int
-linearTransformation n f = fromCols $ toColMatrix . f <$> allBases n
+linearTransformation :: Int -> (QBitBase -> ColMatrix a) -> ColMatrix a
+linearTransformation n f = fromCols $ f <$> allBases n
 
 tensoreye :: Int -> ColMatrix Int
-tensoreye n = linearTransformation n id
+tensoreye n = linearTransformation n toColMatrix
 
 type QBit = ColMatrix (Complex Double)
 type Operator = QBit

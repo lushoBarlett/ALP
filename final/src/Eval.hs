@@ -1,9 +1,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Eval(eval, EvalT(..), defaultRunEnv, defaultState, run) where
 
-import Common (QC(..), State(..), Environment(..), tensorQBit, tensoreye, Operator, Name, linearTransformation, castFromInt, castFromReal, addGate)
-import Matrix (Matrix(..), RowMatrix(..), fromRowToCol)
-import QBit (qbitFromNumber, toColMatrix)
+import Common (QC(..), State(..), Environment(..), tensorQBit, tensoreye, Operator, Name, linearTransformation, castFromInt, castFromReal, addGate, showState)
+import Matrix (Matrix(..), RowMatrix(..), fromRowToCol, ColMatrix (ColMatrix))
+import QBit (qbitFromNumber, toColMatrix, QBitBase (..))
 import Control.Monad.State (MonadState(..), StateT(..))
 import Control.Monad.Reader (MonadReader(..), ReaderT(..))
 import Control.Monad.Except (MonadError(..), ExceptT(..), runExceptT)
@@ -11,6 +11,7 @@ import Data.Complex (Complex(..))
 import qualified Data.Map as Map
 import Data.List (elemIndex)
 import Data.Bits (testBit, setBit, clearBit)
+import qualified Debug.Trace
 
 newtype EvalT a = EvalT {
   runEvalT :: ReaderT Environment (StateT State (ExceptT String IO)) a
@@ -47,6 +48,9 @@ updateState f = do
   s <- get
   put $ f s
 
+enumerate :: [a] -> [(Int, a)]
+enumerate = zip [0..]
+
 -- conceputalmente lo que tenemos es
 -- Q' subset de Q
 -- podemos computar una matriz A aplicable a Q'
@@ -70,9 +74,9 @@ updateState f = do
 swap :: Int -> Int -> Int -> Operator
 swap i j n = castFromInt $ linearTransformation n f
   where
-    f base | testBit base i && not (testBit base j) = setBit (clearBit base i) j
-           | not (testBit base i) && testBit base j = setBit (clearBit base j) i
-           | otherwise = base
+    f base | testBit base i && not (testBit base j) = toColMatrix $ setBit (clearBit base i) j
+           | not (testBit base i) && testBit base j = toColMatrix $ setBit (clearBit base j) i
+           | otherwise = toColMatrix base
 
 slice :: Int -> Int -> [a] -> [a]
 slice i j xs = take (j - i) $ drop i xs
@@ -107,7 +111,7 @@ expand names partialOps = do
 
   let allnames = qbitnames s
 
-  let (_, swapop) = swapToPrefix (zip [0..] names) allnames
+  let (_, swapop) = swapToPrefix (enumerate names) allnames
   let swapinv = transpose swapop
 
   -- tensor with leftover identities
@@ -128,22 +132,99 @@ resolveVariable name = do
 -- NOTE: because '->' is basically flipped matrix multiplication,
 -- we flip several things here to make it work.
 
+operate :: Operator -> EvalT ()
+operate op = updateState $ \s -> s { qbits = op <> qbits s } -- flipped
+
+variables :: QC -> [Name]
+variables (QCCircuit _ _ body) = concatMap variables body
+variables (QCIf conditions body) = concatMap variables conditions ++ concatMap variables body
+variables (QCVariable name) = [name]
+variables (QCNegatedVariable name) = [name]
+variables (QCOperation names _) = names
+variables _ = []
+
+someOccursIn :: [Name] -> [Name] -> Bool
+someOccursIn [] _ = False
+someOccursIn (x:xs) ys = x `elem` ys || xs `someOccursIn` ys
+
 eval :: QC -> EvalT ()
 eval (QCCircuit _ preps body) = mapM_ eval preps >> evalSeq body
 eval (QCPreparation n name) = updateState $ \s -> tensorQBit s name $ castFromInt $ toColMatrix $ qbitFromNumber n
 eval _ = error "Not implemented: eval"
 
+-- conceputalmente lo que tenemos es
+-- Q' subset de Q
+-- donde Q' son las variables condiciones y Q\Q' es el resto
+-- queremos aplicar un operador a Q\Q' solamente si se cumplen las condiciones de Q'
+
+-- hacemos swap para poner las condiciones al frente de Q, y luego creamos
+-- una transformacion lineal que transforma un vector canonico con (I `tensor` op)
+-- si la parte de las condiciones matchea exáctamente, y sino es (I `tensor` I)
+-- tener en cuenta que lo construimos por columnas.
+
+-- el operador se computa compilando el cuerpo del if, que es multiplicar
+-- los efectos de cada linea del cuerpo, con las expansiones adecuadas
+
+-- |cond,rest> -> (IxH)|cond,rest> (si matchea)
+-- |v> -> |v> (en otro caso)
+compileIf :: [QC] -> [QC] -> EvalT Operator
+compileIf conditions body = do
+  s <- get
+
+  let vs = concatMap variables conditions
+
+  let allnames = qbitnames s
+
+  let conditionsBits = toBase (length allnames)
+
+  let (allnames', swapop) = swapToPrefix (enumerate vs) allnames
+  let swapinv = transpose swapop
+
+  put $ s { qbitnames = remove vs allnames' } -- ! FIXME: ugly hack, `expand` reads the state for the names
+  op <- compileOperator (remove vs allnames') body -- remove variables from conditions, they can't be used
+  put s -- restore
+
+  Debug.Trace.traceM $ showState s
+
+  Debug.Trace.traceM $ show op
+
+  let leftover = castFromInt $ tensoreye $ length vs
+
+  let fullop = leftover `tensor` op
+
+  -- apply op conditionally, according to the conditions
+  let op' = linearTransformation (length allnames) f
+        where
+          f base | matchesConditions conditionsBits base = ColMatrix (tensorDimension base) 1 $ col (baseValueRepr base) fullop
+                 | otherwise = toColMatrix base -- id
+
+  return $ swapinv <> op' <> swapop
+
+  where
+    toBits = map varToCond
+
+    varToCond (QCVariable _) = 1
+    varToCond (QCNegatedVariable _) = 0
+    varToCond _ = error "Not implemented: varToCond"
+
+    toBase n = QBitBase (foldl setBit 0 $ toBits conditions) n
+
+    remove vs allnames = drop (length vs) allnames -- all at the front
+
+    matchesConditions bits base = all (\i -> testBit base i == testBit bits i) [0..tensorDimension bits - 1]
+
+
 evalSeq :: [QC] -> EvalT ()
 evalSeq [] = return ()
-evalSeq ((QCOperation names qc):qcs) = do
-  op <- evalOperator names qc
-  updateState $ \s -> s {
-    -- flipped
-    qbits = op <> qbits s
-  }
-  evalSeq qcs
-evalSeq (gate@(QCGate name _ _):qcs) =
-  local (addGate name gate) $ evalSeq qcs
+evalSeq ((QCOperation names qc):qcs) = evalOperator names qc >>= operate >> evalSeq qcs
+evalSeq (gate@(QCGate name _ _):qcs) = local (addGate name gate) $ evalSeq qcs
+evalSeq ((QCIf conditions body):qcs) = do
+  let vs = concatMap variables conditions
+  let vs' = concatMap variables body
+  if vs `someOccursIn` vs'
+    then throwError "Variables in if condition must not occur in body"
+    else compileIf conditions body >>= operate >> evalSeq qcs
+
 evalSeq (qc:_) = error $ "Not implemented: evalSeq for " ++ show qc
 
 evalOperator :: [Name] -> QC -> EvalT Operator
