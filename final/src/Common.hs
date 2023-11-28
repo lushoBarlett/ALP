@@ -26,9 +26,11 @@ data QC
   | QCPreparation Int Name
   | QCGate Name [Name] [QC]
   | QCOperation [Name] QC
+  | QCIf [QC] [QC]
   | QCArrow QC QC
   | QCTensors [QC]
   | QCVariable Name
+  | QCNegatedVariable Name
   | QCI | QCX | QCY | QCZ | QCH
   deriving Show
 
@@ -73,7 +75,7 @@ tensorQBit s1 name qbit = State {
 }
 
 castFromInt :: (RealFloat a, Functor f) => f Int -> f (Complex a)
-castFromInt = fmap (:+ 0) . fmap fromIntegral
+castFromInt = fmap $ (:+ 0) . fromIntegral
 
 castFromReal :: (RealFloat a, Functor f) => f a -> f (Complex a)
 castFromReal = fmap (:+ 0)

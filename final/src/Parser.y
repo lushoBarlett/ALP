@@ -19,8 +19,10 @@ import Data.Char
   '}'  { TokenRBrace }
   ','  { TokenComma }
   ';'  { TokenSemicolon }
+  '~'  { TokenNegation }
   CIR  { TokenCircuit }
   GATE { TokenGate }
+  IF   { TokenIf }
 
 %left "->"
 
@@ -47,6 +49,7 @@ Statements : Statement ';' Statements { $1 : $3 }
 
 Statement : Definition { $1 }
           | Operation  { $1 }
+          | If         { $1 }
 
 Definition :: { QC }
 Definition : GATE ArgumentList '->' VAR Body { QCGate $4 $2 $5 }
@@ -58,6 +61,19 @@ ArgumentList :: { [String] }
 ArgumentList : VAR { [$1] }
 ArgumentList : VAR ',' { [$1] } -- optional trailing comma
 ArgumentList : VAR ',' ArgumentList { $1 : $3 }
+
+If :: { QC }
+If : IF IfList Body { QCIf $2 $3 }
+
+IfList :: { [QC] }
+IfList : {- empty -} { [] }
+IfList : IfCondition { [$1] }
+IfList : IfCondition ',' { [$1] } -- optional trailing comma
+IfList : IfCondition ',' IfList { $1 : $3 }
+
+IfCondition :: { QC }
+IfCondition : VAR { QCVariable $1 }
+IfCondition : '~' VAR { QCNegatedVariable $2 }
 
 Chain :: { QC }
 Chain : Tensor           { QCTensors $1 }
@@ -84,8 +100,10 @@ data Token
   | TokenRBrace
   | TokenComma
   | TokenSemicolon
+  | TokenNegation
   | TokenCircuit
   | TokenGate
+  | TokenIf
   deriving Show
 
 parseError :: [Token] -> a
@@ -106,11 +124,13 @@ lexer ('{':cs) = TokenLBrace : lexer cs
 lexer ('}':cs) = TokenRBrace : lexer cs
 lexer (',':cs) = TokenComma : lexer cs
 lexer (';':cs) = TokenSemicolon : lexer cs
+lexer ('~':cs) = TokenNegation : lexer cs
 
 lexVar cs =
   case span isAlpha cs of
     ("circuit",rest) -> TokenCircuit : lexer rest
     ("gate",rest) -> TokenGate : lexer rest
+    ("if",rest) -> TokenIf : lexer rest
     (var,rest) -> TokenVar var : lexer rest
 
 lexNum cs =

@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Eval(eval, EvalT(..), defaultRunEnv, defaultState, run) where
 
-import Common (QC(..), State(..), Environment(..), tensorQBit, tensoreye, Operator, Name, linearTransformation, castFromInt, castFromReal)
+import Common (QC(..), State(..), Environment(..), tensorQBit, tensoreye, Operator, Name, linearTransformation, castFromInt, castFromReal, addGate)
 import Matrix (Matrix(..), RowMatrix(..), fromRowToCol)
 import QBit (qbitFromNumber, toColMatrix)
 import Control.Monad.State (MonadState(..), StateT(..))
@@ -131,7 +131,7 @@ resolveVariable name = do
 eval :: QC -> EvalT ()
 eval (QCCircuit _ preps body) = mapM_ eval preps >> evalSeq body
 eval (QCPreparation n name) = updateState $ \s -> tensorQBit s name $ castFromInt $ toColMatrix $ qbitFromNumber n
-eval _ = undefined
+eval _ = error "Not implemented: eval"
 
 evalSeq :: [QC] -> EvalT ()
 evalSeq [] = return ()
@@ -143,7 +143,7 @@ evalSeq ((QCOperation names qc):qcs) = do
   }
   evalSeq qcs
 evalSeq (gate@(QCGate name _ _):qcs) =
-  local (\env -> env { gates = Map.insert name gate (gates env) }) $ evalSeq qcs
+  local (addGate name gate) $ evalSeq qcs
 evalSeq (qc:_) = error $ "Not implemented: evalSeq for " ++ show qc
 
 evalOperator :: [Name] -> QC -> EvalT Operator
@@ -162,7 +162,7 @@ evalOperator names (QCVariable name) = resolveVariable name >>= evalOperator nam
 evalOperator _ (QCOperation names qc) = evalOperator names qc
 evalOperator _ QCI = return $  castFromInt $ fromRowToCol $ RowMatrix 2 2 [1, 0, 0, 1]
 evalOperator _ QCX = return $  castFromInt $ fromRowToCol $ RowMatrix 2 2 [0, 1, 1, 0]
-evalOperator _ QCY = return $           id $ fromRowToCol $ RowMatrix 2 2 [0, 0 :+ (-1), 0 :+ 1, 0]
+evalOperator _ QCY = return $                fromRowToCol $ RowMatrix 2 2 [0, 0 :+ (-1), 0 :+ 1, 0]
 evalOperator _ QCZ = return $  castFromInt $ fromRowToCol $ RowMatrix 2 2 [1, 0, 0, -1]
 evalOperator _ QCH = return $ castFromReal $ fromRowToCol $ RowMatrix 2 2 [1 / sqrt 2, 1 / sqrt 2, 1 / sqrt 2, -1 / sqrt 2]
 evalOperator _ (QCGate _ args body) = do
