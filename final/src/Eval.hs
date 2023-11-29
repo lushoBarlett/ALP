@@ -133,7 +133,12 @@ resolveVariable name = do
 -- we flip several things here to make it work.
 
 operate :: Operator -> EvalT ()
-operate op = updateState $ \s -> s { qbits = op <> qbits s } -- flipped
+operate op = do
+  updateState $ \s -> s { qbits = op <> qbits s } -- flipped
+  s <- get
+  Debug.Trace.traceM $ "operate:"
+  Debug.Trace.traceM $ show op
+  Debug.Trace.traceM $ showState s
 
 variables :: QC -> [Name]
 variables (QCCircuit _ _ body) = concatMap variables body
@@ -184,10 +189,6 @@ compileIf conditions body = do
   op <- compileOperator (remove vs allnames') body -- remove variables from conditions, they can't be used
   put s -- restore
 
-  Debug.Trace.traceM $ showState s
-
-  Debug.Trace.traceM $ show op
-
   let leftover = castFromInt $ tensoreye $ length vs
 
   let fullop = leftover `tensor` op
@@ -211,7 +212,8 @@ compileIf conditions body = do
 
     remove vs allnames = drop (length vs) allnames -- all at the front
 
-    matchesConditions bits base = all (\i -> testBit base i == testBit bits i) [0..tensorDimension bits - 1]
+    matchesConditions bits base = all (\i -> testBit base i == testBit bits i) [b..tensorDimension bits - 1]
+      where b = tensorDimension bits - length conditions -- start from here, lower significance bits are not used
 
 
 evalSeq :: [QC] -> EvalT ()
@@ -228,6 +230,8 @@ evalSeq ((QCIf conditions body):qcs) = do
 evalSeq (qc:_) = error $ "Not implemented: evalSeq for " ++ show qc
 
 evalOperator :: [Name] -> QC -> EvalT Operator
+evalOperator _ (QCOperation names qc) = evalOperator names qc
+
 evalOperator names (QCArrow qc1 qc2) = do
   op1 <- evalOperator names qc1
   op2 <- evalOperator names qc2
@@ -240,7 +244,6 @@ evalOperator names (QCTensors tensors) = do
 
 evalOperator names (QCVariable name) = resolveVariable name >>= evalOperator names
 
-evalOperator _ (QCOperation names qc) = evalOperator names qc
 evalOperator _ QCI = return $  castFromInt $ fromRowToCol $ RowMatrix 2 2 [1, 0, 0, 1]
 evalOperator _ QCX = return $  castFromInt $ fromRowToCol $ RowMatrix 2 2 [0, 1, 1, 0]
 evalOperator _ QCY = return $                fromRowToCol $ RowMatrix 2 2 [0, 0 :+ (-1), 0 :+ 1, 0]
