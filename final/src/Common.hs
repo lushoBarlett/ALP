@@ -51,7 +51,8 @@ data Environment = Environment {
 -- supposed to be a column vector
 data State = State {
   qbits :: QBit,
-  qbitnames :: [Name]
+  qbitnames :: [Name],
+  qbitcontext :: [Name]
 }
 
 showState :: State -> String
@@ -71,7 +72,8 @@ addGate name gate env = env {
 tensorQBit :: State -> Name -> QBit -> State
 tensorQBit s1 name qbit = State {
   qbits = tensor (qbits s1) qbit,
-  qbitnames = qbitnames s1 ++ [name]
+  qbitnames = qbitnames s1 ++ [name],
+  qbitcontext = qbitcontext s1 ++ [name]
 }
 
 castFromInt :: (RealFloat a, Functor f) => f Int -> f (Complex a)

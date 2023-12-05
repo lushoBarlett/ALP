@@ -11,7 +11,6 @@ import Data.Complex (Complex(..))
 import qualified Data.Map as Map
 import Data.List (elemIndex)
 import Data.Bits (testBit, setBit, clearBit, Bits (..))
-import Debug.Trace (traceM)
 
 newtype EvalT a = EvalT {
   runEvalT :: ReaderT Environment (StateT State (ExceptT String IO)) a
@@ -40,7 +39,8 @@ defaultRunEnv = Environment {
 defaultState :: State
 defaultState = State {
   qbits = fromRowToCol $ RowMatrix 1 1 [1],
-  qbitnames = []
+  qbitnames = [],
+  qbitcontext = []
 }
 
 updateState :: (State -> State) -> EvalT ()
@@ -53,6 +53,14 @@ enumerate = zip [0..]
 
 renumerate :: Int -> [a] -> [(Int, a)]
 renumerate n = zip $ reverse [0..n-1]
+
+useContext :: [Name] -> EvalT a -> EvalT a
+useContext names e = do
+  s <- get
+  put $ s { qbitcontext = names }
+  result <- e
+  put $ s { qbitcontext = qbitcontext s }
+  return result
 
 -- conceputalmente lo que tenemos es
 -- Q' subset de Q
@@ -112,13 +120,13 @@ expand :: [Name] -> [Operator] -> EvalT Operator
 expand names partialOps = do
   s <- get
 
-  let allnames = qbitnames s
+  let context = qbitcontext s
 
-  let (_, swapop) = swapToPrefix (enumerate names) allnames
+  let (_, swapop) = swapToPrefix (enumerate names) context
   let swapinv = transpose swapop
 
   -- tensor with leftover identities
-  let leftover = castFromInt $ tensoreye (length allnames - length names)
+  let leftover = castFromInt $ tensoreye (length context - length names)
 
   let op = foldr1 tensor (partialOps ++ [leftover])
 
@@ -176,23 +184,21 @@ compileIf conditions body = do
 
   let vs = concatMap variables conditions
 
-  let allnames = qbitnames s
+  let context = qbitcontext s
 
-  let conditionsBits = toBase (length allnames)
+  let conditionsBits = toBase (length context)
 
-  let (allnames', swapop) = swapToPrefix (enumerate vs) allnames
+  let (allnames', swapop) = swapToPrefix (enumerate vs) context
   let swapinv = transpose swapop
 
-  put $ s { qbitnames = remove vs allnames' } -- ! FIXME: ugly hack, `expand` reads the state for the names
-  op <- compileOperator (remove vs allnames') body -- remove variables from conditions, they can't be used
-  put s -- restore
+  op <- useContext (remove vs allnames') $ compileOperator (remove vs allnames') body
 
   let leftover = castFromInt $ tensoreye $ length vs
 
   let fullop = leftover `tensor` op
 
   -- apply op conditionally, according to the conditions
-  let op' = linearTransformation (length allnames) f
+  let op' = linearTransformation (length context) f
         where
           f base | matchesConditions conditionsBits base = ColMatrix (2^tensorDimension base) 1 $ col (baseValueRepr base) fullop
                  | otherwise = toColMatrix base -- id
@@ -212,7 +218,6 @@ compileIf conditions body = do
 
     matchesConditions bits base = all (\i -> testBit base i == testBit bits i) [b..tensorDimension bits - 1]
       where b = tensorDimension bits - length conditions -- start from here, lower significance bits are not used
-
 
 evalIf :: [QC] -> [QC] -> EvalT ()
 evalIf conditions body = do
@@ -249,19 +254,9 @@ evalOperator _ QCX = return $  castFromInt $ fromRowToCol $ RowMatrix 2 2 [0, 1,
 evalOperator _ QCY = return $                fromRowToCol $ RowMatrix 2 2 [0, 0 :+ (-1), 0 :+ 1, 0]
 evalOperator _ QCZ = return $  castFromInt $ fromRowToCol $ RowMatrix 2 2 [1, 0, 0, -1]
 evalOperator _ QCH = return $ castFromReal $ fromRowToCol $ RowMatrix 2 2 [1 / sqrt 2, 1 / sqrt 2, 1 / sqrt 2, -1 / sqrt 2]
-evalOperator _ (QCGate _ args body) = do
-  s <- get
-  put $ s { qbitnames = args } -- ! FIXME: ugly hack, `expand` reads the state for the names
-  op <- compileOperator args body
-  put s -- restore
-  return op
 
-evalOperator names (QCIf conditions body) = do
-  s <- get
-  put $ s { qbitnames = names } -- ! FIXME: ugly hack, `expand` reads the state for the names
-  op <- compileIf conditions body
-  put s -- restore
-  return op
+evalOperator _ (QCGate _ args body) = useContext args $ compileOperator args body
+evalOperator names (QCIf conditions body) = useContext names $ compileIf conditions body
 
 evalOperator _ qc = error $ "Not implemented: evalOperator for " ++ show qc
 
