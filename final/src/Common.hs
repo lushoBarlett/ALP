@@ -11,7 +11,9 @@ module Common (
   showState,
   tensorQBit,
   castFromInt,
-  castFromReal
+  castFromReal,
+  enumerate,
+  renumerate
 ) where
 
 import Data.Complex (Complex(..))
@@ -81,3 +83,9 @@ castFromInt = fmap $ (:+ 0) . fromIntegral
 
 castFromReal :: (RealFloat a, Functor f) => f a -> f (Complex a)
 castFromReal = fmap (:+ 0)
+
+enumerate :: [a] -> [(Int, a)]
+enumerate = zip [0..]
+
+renumerate :: Int -> [a] -> [(Int, a)]
+renumerate n = zip $ reverse [0..n-1]
