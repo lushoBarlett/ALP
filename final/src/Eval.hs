@@ -10,7 +10,8 @@ import Control.Monad.Except (MonadError(..), ExceptT(..), runExceptT)
 import Data.Complex (Complex(..))
 import qualified Data.Map as Map
 import Data.List (elemIndex)
-import Data.Bits (testBit, setBit, clearBit)
+import Data.Bits (testBit, setBit, clearBit, Bits (..))
+import Debug.Trace (traceM)
 
 newtype EvalT a = EvalT {
   runEvalT :: ReaderT Environment (StateT State (ExceptT String IO)) a
@@ -49,6 +50,9 @@ updateState f = do
 
 enumerate :: [a] -> [(Int, a)]
 enumerate = zip [0..]
+
+renumerate :: Int -> [a] -> [(Int, a)]
+renumerate n = zip $ reverse [0..n-1]
 
 -- conceputalmente lo que tenemos es
 -- Q' subset de Q
@@ -190,21 +194,21 @@ compileIf conditions body = do
   -- apply op conditionally, according to the conditions
   let op' = linearTransformation (length allnames) f
         where
-          f base | matchesConditions conditionsBits base = ColMatrix (tensorDimension base) 1 $ col (baseValueRepr base) fullop
+          f base | matchesConditions conditionsBits base = ColMatrix (2^tensorDimension base) 1 $ col (baseValueRepr base) fullop
                  | otherwise = toColMatrix base -- id
 
   return $ swapinv <> op' <> swapop
 
   where
-    toBits = map varToCond
+    toBits = map $ uncurry varToBit
 
-    varToCond (QCVariable _) = 1
-    varToCond (QCNegatedVariable _) = 0
-    varToCond _ = error "Not implemented: varToCond"
+    varToBit k (QCVariable _) = bit k
+    varToBit _ (QCNegatedVariable _) = 0
+    varToBit _ _ = error "Not implemented: varToCond"
 
-    toBase n = QBitBase (foldl setBit 0 $ toBits conditions) n
+    toBase n = QBitBase (sum $ toBits $ renumerate n conditions) n
 
-    remove vs allnames = drop (length vs) allnames -- all at the front
+    remove vs = drop (length vs) -- all at the front
 
     matchesConditions bits base = all (\i -> testBit base i == testBit bits i) [b..tensorDimension bits - 1]
       where b = tensorDimension bits - length conditions -- start from here, lower significance bits are not used
