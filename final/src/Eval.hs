@@ -214,17 +214,19 @@ compileIf conditions body = do
       where b = tensorDimension bits - length conditions -- start from here, lower significance bits are not used
 
 
-evalSeq :: [QC] -> EvalT ()
-evalSeq [] = return ()
-evalSeq ((QCOperation names qc):qcs) = evalOperator names qc >>= operate >> evalSeq qcs
-evalSeq (gate@(QCGate name _ _):qcs) = local (addGate name gate) $ evalSeq qcs
-evalSeq ((QCIf conditions body):qcs) = do
+evalIf :: [QC] -> [QC] -> EvalT ()
+evalIf conditions body = do
   let vs = concatMap variables conditions
   let vs' = concatMap variables body
   if vs `someOccursIn` vs'
     then throwError "Variables in if condition must not occur in body"
-    else compileIf conditions body >>= operate >> evalSeq qcs
+    else compileIf conditions body >>= operate
 
+evalSeq :: [QC] -> EvalT ()
+evalSeq [] = return ()
+evalSeq ((QCOperation names qc):qcs) = evalOperator names qc >>= operate >> evalSeq qcs
+evalSeq (gate@(QCGate name _ _):qcs) = local (addGate name gate) $ evalSeq qcs
+evalSeq ((QCIf conditions body):qcs) = evalIf conditions body >> evalSeq qcs
 evalSeq (qc:_) = error $ "Not implemented: evalSeq for " ++ show qc
 
 evalOperator :: [Name] -> QC -> EvalT Operator
@@ -251,6 +253,13 @@ evalOperator _ (QCGate _ args body) = do
   s <- get
   put $ s { qbitnames = args } -- ! FIXME: ugly hack, `expand` reads the state for the names
   op <- compileOperator args body
+  put s -- restore
+  return op
+
+evalOperator names (QCIf conditions body) = do
+  s <- get
+  put $ s { qbitnames = names } -- ! FIXME: ugly hack, `expand` reads the state for the names
+  op <- compileIf conditions body
   put s -- restore
   return op
 
