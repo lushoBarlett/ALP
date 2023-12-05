@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Eval(eval, EvalT(..), defaultRunEnv, defaultState, run) where
 
-import Common (QC(..), State(..), Environment(..), tensorQBit, tensoreye, Operator, Name, linearTransformation, castFromInt, castFromReal, addGate, showState)
+import Common (QC(..), State(..), Environment(..), tensorQBit, tensoreye, Operator, Name, linearTransformation, castFromInt, castFromReal, addGate)
 import Matrix (Matrix(..), RowMatrix(..), fromRowToCol, ColMatrix (ColMatrix))
 import QBit (qbitFromNumber, toColMatrix, QBitBase (..))
 import Control.Monad.State (MonadState(..), StateT(..))
@@ -11,7 +11,6 @@ import Data.Complex (Complex(..))
 import qualified Data.Map as Map
 import Data.List (elemIndex)
 import Data.Bits (testBit, setBit, clearBit)
-import qualified Debug.Trace
 
 newtype EvalT a = EvalT {
   runEvalT :: ReaderT Environment (StateT State (ExceptT String IO)) a
@@ -133,12 +132,7 @@ resolveVariable name = do
 -- we flip several things here to make it work.
 
 operate :: Operator -> EvalT ()
-operate op = do
-  updateState $ \s -> s { qbits = op <> qbits s } -- flipped
-  s <- get
-  Debug.Trace.traceM $ "operate:"
-  Debug.Trace.traceM $ show op
-  Debug.Trace.traceM $ showState s
+operate op = updateState $ \s -> s { qbits = op <> qbits s } -- flipped
 
 variables :: QC -> [Name]
 variables (QCCircuit _ _ body) = concatMap variables body

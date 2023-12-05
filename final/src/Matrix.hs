@@ -45,8 +45,9 @@ instance (Num a, Show a, Eq a) => Semigroup (RowMatrix a) where
   m1 <> m2 = if cols m1 /= rows m2
     then error $ "incompatible dimensions " ++ show (cols m1) ++ " " ++ show (rows m2)
     else RowMatrix (rows m1) (cols m2) $ do
-      i <- [0..(rows m1) - 1]
-      j <- [0..(cols m2) - 1]
+      -- traverse by rows, because we build in rows
+      i <- [0..rows m1 - 1]
+      j <- [0..cols m2 - 1]
       return $ row i m1 `dot` col j m2
 
 instance (Num a, Show a, Eq a) => Matrix (RowMatrix a) a where
@@ -76,8 +77,9 @@ instance (Num a, Show a, Eq a) => Semigroup (ColMatrix a) where
   m1 <> m2 = if cols m1 /= rows m2
     then error $ "incompatible dimensions " ++ show (cols m1) ++ " " ++ show (rows m2)
     else ColMatrix (rows m1) (cols m2) $ do
-      i <- [0..(rows m1) - 1]
-      j <- [0..(cols m2) - 1]
+      -- traverse by columns, because we build in columns
+      j <- [0..cols m2 - 1]
+      i <- [0..rows m1 - 1]
       return $ row i m1 `dot` col j m2
 
 instance (Num a, Show a, Eq a) => Matrix (ColMatrix a) a where

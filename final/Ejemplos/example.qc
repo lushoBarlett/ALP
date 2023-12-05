@@ -1,8 +1,5 @@
-circuit First (0 -> a, 0 -> b) {
-
-	a -> H;
-
-	if a {
-		b -> X;
+circuit First (1 -> a, 1 -> b, 0 -> c) {
+	if a,b {
+		c -> X;
 	};
 }
