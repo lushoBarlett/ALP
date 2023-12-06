@@ -7,9 +7,11 @@ import Eval (eval, defaultRunEnv, defaultState, run)
 import System.Console.Haskeline (InputT, runInputT, defaultSettings, getInputLine, outputStrLn)
 import Control.Monad.Trans (MonadTrans(lift))
 
+-- parses and prints the given string
 printAST :: String -> IO ()
-printAST = print . prettyPrint . qcparser . lexer
+printAST = putStr . prettyPrint . qcparser . lexer
 
+-- parses and evaluates the given string
 parseAndEval :: String -> IO ()
 parseAndEval s = do
   let evalRes = (eval . qcparser . lexer) s
@@ -18,24 +20,40 @@ parseAndEval s = do
     Left err -> print err
     Right ((), state) -> putStrLn $ showState state
 
+-- main function
 main :: IO ()
-main = runInputT defaultSettings loop
+main = runInputT defaultSettings (intro >> loop)
 
+-- prints the intro message of the app
+intro :: InputT IO ()
+intro = outputStrLn $
+  "Welcome to the Quantum Circuit Language Interpreter!\n" ++
+  "CLI is not yet supported, but you can execute files and print their ASTs.\n" ++
+  "Type :f <file> to execute a file\n" ++
+  "Type :p <file> to print its AST (not quite pretty-printing)\n" ++
+  "Type :q to quit\n"
+
+-- main loop of the app
 loop :: InputT IO ()
 loop = do
-  input <- getInputLine "λ (auto-execute-file-mode) "
+  input <- getInputLine "λ "
   case input of
     Nothing -> return ()
-    Just s -> do
-      if length (words s) == 1
-        then lift $ parseAndEval s
-        else executeCommand ":f Ejemplos/example.qc" -- auto execute file for quick testing
-      loop
+    Just s -> executeCommand s
 
+-- command interpreter
 executeCommand :: String -> InputT IO ()
-executeCommand s =
-  let [command, file] = take 2 $ words s
-  in case command of
-    ":f" -> lift $ readFile file >>= parseAndEval
-    ":p" -> lift $ readFile file >>= printAST
-    _ -> outputStrLn "Unknown command"
+executeCommand s = do
+  if null (words s)
+    then loop
+    else do
+      let (command : rest) = words s
+      case command of
+        ":f" -> fileOrDeath rest parseAndEval >> loop
+        ":p" -> fileOrDeath rest printAST >> loop
+        ":q" -> return ()
+        _ -> outputStrLn "Unknown command"
+
+fileOrDeath :: [String] -> (String -> IO ()) -> InputT IO ()
+fileOrDeath [] _ = outputStrLn "No file given"
+fileOrDeath (f : _) m = lift $ readFile f >>= m

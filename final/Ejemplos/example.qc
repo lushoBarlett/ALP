@@ -4,7 +4,7 @@ circuit First (0 -> a, 0 -> b) {
 		if x {
 			y -> X;
 		};
-	};
+	}
 
 	a -> X -> H;
 	b -> H;
