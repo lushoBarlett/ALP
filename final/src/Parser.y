@@ -7,6 +7,7 @@ import Data.Char
 %name qcparser
 %tokentype { Token }
 %error { parseError }
+%monad { E } { thenE } { returnE }
 
 %token
   INT  { TokenInt $$ }
@@ -106,8 +107,30 @@ data Token
   | TokenIf
   deriving Show
 
-parseError :: [Token] -> a
-parseError tokenList = error ("Parse error on token list: " ++ show tokenList)
+parseError :: [Token] -> E a
+parseError tokenList = failE ("Parse error on token list: " ++ show tokenList)
+
+-- stolen from the Happy documentation
+-- https://haskell-happy.readthedocs.io/en/latest/using.html#monadic-parsers
+data E a = Ok a | Failed String
+
+thenE :: E a -> (a -> E b) -> E b
+m `thenE` k =
+   case m of
+       Ok a     -> k a
+       Failed e -> Failed e
+
+returnE :: a -> E a
+returnE a = Ok a
+
+failE :: String -> E a
+failE err = Failed err
+
+catchE :: E a -> (String -> E a) -> E a
+catchE m k =
+   case m of
+      Ok a     -> Ok a
+      Failed e -> k e
 
 lexer :: String -> [Token]
 lexer [] = []

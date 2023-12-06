@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Parser (qcparser, lexer)
+import Parser (qcparser, lexer, E(..))
 import Common (showState)
 import PrettyPrint (prettyPrint)
 import Eval (eval, defaultRunEnv, defaultState, run)
@@ -9,16 +9,24 @@ import Control.Monad.Trans (MonadTrans(lift))
 
 -- parses and prints the given string
 printAST :: String -> IO ()
-printAST = putStr . prettyPrint . qcparser . lexer
+printAST s = do
+  let qc = qcparser $ lexer s
+  case qc of
+    Failed err -> putStrLn err
+    Ok ast -> putStrLn $ prettyPrint ast
 
 -- parses and evaluates the given string
 parseAndEval :: String -> IO ()
 parseAndEval s = do
-  let evalRes = (eval . qcparser . lexer) s
-  ran <- run evalRes defaultRunEnv defaultState
-  case ran of
-    Left err -> print err
-    Right ((), state) -> putStrLn $ showState state
+  let qc = qcparser $ lexer s
+  case qc of
+    Failed err -> putStrLn err
+    Ok ast -> do
+      let evalRes = eval ast
+      ran <- run evalRes defaultRunEnv defaultState
+      case ran of
+        Left err -> print err
+        Right ((), state) -> putStrLn $ showState state
 
 -- main function
 main :: IO ()
