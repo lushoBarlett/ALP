@@ -9,32 +9,37 @@ module Matrix (
   fromColToRow
 ) where
 
+-- dot product of two vectors, represented as lists
 dot :: Num a => [a] -> [a] -> a
 dot as bs = sum $ zipWith (*) as bs
 
 class (Eq a, Show a, Semigroup m) => Matrix m a | m -> a where
-  rows :: m -> Int
+  rows :: m -> Int -- number of rows
 
-  cols :: m -> Int
+  cols :: m -> Int -- number of columns
 
-  (!) :: m -> (Int, Int) -> a
+  (!) :: m -> (Int, Int) -> a -- element at row i and column j
 
-  transpose :: m -> m
+  transpose :: m -> m -- transposes the matrix
 
-  tensor :: m -> m -> m
+  tensor :: m -> m -> m -- gives the tensor product of two matrices
 
-  row :: Int -> m -> [a]
+  row :: Int -> m -> [a] -- ith row of a matrix as a list
   row i m = [m ! (i, j) | j <- [0..cols m - 1]]
 
-  col :: Int -> m -> [a]
+  col :: Int -> m -> [a] -- jth column of a matrix as a list
   col j m = [m ! (i, j) | i <- [0..rows m - 1]]
 
-  _eq :: m -> m -> Bool
+  _eq :: m -> m -> Bool -- used in the Eq instance
   _eq m1 m2 = rows m1 == rows m2 && cols m1 == cols m2 && and [m1 ! (i, j) == m2 ! (i, j) | i <- [0..rows m1 - 1], j <- [0..cols m1 - 1]]
 
-  _show :: m -> String
+  _show :: m -> String -- used in Show instance
   _show m = unlines [unwords [show $ m ! (i, j) | j <- [0..cols m - 1]] | i <- [0..rows m - 1]]
 
+-- For major matrix types, read the following:
+-- https://en.wikipedia.org/wiki/Row-_and_column-major_order
+
+-- row major matrix representation
 data RowMatrix a = RowMatrix {
   rmrows :: Int,
   rmcols :: Int,
@@ -67,6 +72,7 @@ instance (Num a, Show a, Eq a) => Matrix (RowMatrix a) a where
     j2 <- [0..c2-1]
     return $ m1 ! (i1,j1) * m2 ! (i2,j2)
 
+-- column major matrix representation
 data ColMatrix a = ColMatrix {
   cmrows :: Int,
   cmcols :: Int,
@@ -117,14 +123,18 @@ instance Functor RowMatrix where
 instance Functor ColMatrix where
   fmap f (ColMatrix r c as) = ColMatrix r c $ fmap f as
 
+-- converts a row major matrix to a column major matrix
 fromRowToCol :: (Num a, Show a, Eq a) => RowMatrix a -> ColMatrix a
 fromRowToCol m@(RowMatrix r c _) = ColMatrix r c $ do
+  -- traverse by columns first
   j <- [0..c-1]
   i <- [0..r-1]
   return $ m ! (i,j)
 
+-- converts a column major matrix to a row major matrix
 fromColToRow :: (Num a, Show a, Eq a) => ColMatrix a -> RowMatrix a
 fromColToRow m@(ColMatrix r c _) = RowMatrix r c $ do
+  -- traverse by rows first
   i <- [0..r-1]
   j <- [0..c-1]
   return $ m ! (i,j)
