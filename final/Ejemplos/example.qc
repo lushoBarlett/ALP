@@ -1,10 +1,10 @@
-circuit First (0 -> a, 0 -> b) {
+prepare (0 -> a, 0 -> b) {
 
-	gate x,y -> CNOT {
-		if x {
+	circuit x,y -> CNOT {
+		ctrl x {
 			y -> X;
 		};
-	}
+	};
 
 	a -> X -> H;
 	b -> H;

@@ -51,16 +51,14 @@ loop = do
 
 -- command interpreter
 executeCommand :: String -> InputT IO ()
-executeCommand s = do
-  if null (words s)
-    then loop
-    else do
-      let (command : rest) = words s
-      case command of
-        ":f" -> fileOrDeath rest parseAndEval >> loop
-        ":p" -> fileOrDeath rest printAST >> loop
-        ":q" -> return ()
-        _ -> outputStrLn "Unknown command"
+executeCommand s =
+  case words s of
+    [] -> loop
+    (command : rest) -> case command of
+      ":f" -> fileOrDeath rest parseAndEval >> loop
+      ":p" -> fileOrDeath rest printAST >> loop
+      ":q" -> return ()
+      _ -> outputStrLn "Unknown command"
 
 fileOrDeath :: [String] -> (String -> IO ()) -> InputT IO ()
 fileOrDeath [] _ = outputStrLn "No file given"

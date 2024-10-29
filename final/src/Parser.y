@@ -21,16 +21,16 @@ import Data.Char
   ','  { TokenComma }
   ';'  { TokenSemicolon }
   '~'  { TokenNegation }
-  CIR  { TokenCircuit }
-  GATE { TokenGate }
-  IF   { TokenIf }
+  PREP { TokenPrepare }
+  CIRC { TokenCircuit }
+  CTRL { TokenControl }
 
 %left "->"
 
 %%
 
-Circuit :: { QC }
-Circuit : CIR VAR '(' PreparationList ')' Body { QCCircuit $2 $4 $6 }
+Program :: { QC }
+Program : PREP '(' PreparationList ')' Body { QCProgram $3 $5 }
 
 PreparationList :: { [QC] }
 PreparationList : {- empty -} { [] }
@@ -50,10 +50,10 @@ Statements : Statement ';' Statements { $1 : $3 }
 
 Statement : Definition { $1 }
           | Operation  { $1 }
-          | If         { $1 }
+          | Control    { $1 }
 
 Definition :: { QC }
-Definition : GATE ArgumentList '->' VAR Body { QCGate $4 $2 $5 }
+Definition : CIRC ArgumentList '->' VAR Body { QCCircuit $4 $2 $5 }
 
 Operation :: { QC }
 Operation : ArgumentList '->' Chain { QCOperation $1 $3 }
@@ -63,18 +63,18 @@ ArgumentList : VAR { [$1] }
 ArgumentList : VAR ',' { [$1] } -- optional trailing comma
 ArgumentList : VAR ',' ArgumentList { $1 : $3 }
 
-If :: { QC }
-If : IF IfList Body { QCIf $2 $3 }
+Control :: { QC }
+Control : CTRL ControlList Body { QCControl $2 $3 }
 
-IfList :: { [QC] }
-IfList : {- empty -} { [] }
-IfList : IfCondition { [$1] }
-IfList : IfCondition ',' { [$1] } -- optional trailing comma
-IfList : IfCondition ',' IfList { $1 : $3 }
+ControlList :: { [QC] }
+ControlList : {- empty -} { [] }
+ControlList : ControlCondition { [$1] }
+ControlList : ControlCondition ',' { [$1] } -- optional trailing comma
+ControlList : ControlCondition ',' ControlList { $1 : $3 }
 
-IfCondition :: { QC }
-IfCondition : VAR { QCVariable $1 }
-IfCondition : '~' VAR { QCNegatedVariable $2 }
+ControlCondition :: { QC }
+ControlCondition : VAR { QCVariable $1 }
+ControlCondition : '~' VAR { QCNegatedVariable $2 }
 
 Chain :: { QC }
 Chain : Tensor           { QCTensors $1 }
@@ -102,9 +102,9 @@ data Token
   | TokenComma
   | TokenSemicolon
   | TokenNegation
+  | TokenPrepare
   | TokenCircuit
-  | TokenGate
-  | TokenIf
+  | TokenControl
   deriving Show
 
 parseError :: [Token] -> E a
@@ -151,9 +151,9 @@ lexer ('~':cs) = TokenNegation : lexer cs
 
 lexVar cs =
   case span isAlpha cs of
+    ("prepare",rest) -> TokenPrepare : lexer rest
     ("circuit",rest) -> TokenCircuit : lexer rest
-    ("gate",rest) -> TokenGate : lexer rest
-    ("if",rest) -> TokenIf : lexer rest
+    ("ctrl",rest) -> TokenControl : lexer rest
     (var,rest) -> TokenVar var : lexer rest
 
 lexNum cs =

@@ -48,10 +48,10 @@ braceBody tabs body = withBraces tabs (ppbody tabs body)
 
 -- helper function for pretty printing that takes care of the indentation
 pp :: Int -> QC -> String
-pp tabs (QCCircuit name preps body) = repeatTabs tabs ++ "circuit " ++ name ++ withSpaces (withParens (pppreps tabs preps)) ++ braceBody tabs body
+pp tabs (QCProgram preps body) = repeatTabs tabs ++ "prepare " ++ withSpaces (withParens (pppreps tabs preps)) ++ braceBody tabs body
 pp _    (QCPreparation n name) = show n ++ arrow ++ name
-pp tabs (QCGate name args body) = repeatTabs tabs ++ "gate " ++ ppargs args ++ arrow ++ name ++ withSpaces (braceBody tabs body)
-pp tabs (QCIf conditions body) = repeatTabs tabs ++ "if " ++ ppargs (pp 0 <$> conditions) ++ withSpaces (braceBody tabs body)
+pp tabs (QCCircuit name args body) = repeatTabs tabs ++ "circuit " ++ ppargs args ++ arrow ++ name ++ withSpaces (braceBody tabs body)
+pp tabs (QCControl conditions body) = repeatTabs tabs ++ "ctrl " ++ ppargs (pp 0 <$> conditions) ++ withSpaces (braceBody tabs body)
 pp tabs (QCOperation qbitnames qc) = repeatTabs tabs ++ ppargs qbitnames ++ arrow ++ pp 0 qc
 pp tabs (QCArrow ops1 ops2) = repeatTabs tabs ++ pp tabs ops1 ++ arrow ++ pp tabs ops2
 pp tabs (QCTensors ops) = repeatTabs tabs ++ pptensor ops

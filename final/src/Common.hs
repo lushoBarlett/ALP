@@ -26,11 +26,11 @@ type Name = String
 
 -- AST
 data QC
-  = QCCircuit Name [QC] [QC]
+  = QCProgram [QC] [QC]
   | QCPreparation Int Name
-  | QCGate Name [Name] [QC]
+  | QCCircuit Name [Name] [QC]
   | QCOperation [Name] QC
-  | QCIf [QC] [QC]
+  | QCControl [QC] [QC]
   | QCArrow QC QC
   | QCTensors [QC]
   | QCVariable Name

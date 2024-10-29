@@ -71,7 +71,7 @@ useContext names e = do
 
 -- main evaluation function
 eval :: QC -> EvalT ()
-eval (QCCircuit _ preps body) = mapM_ eval preps >> evalSeq body
+eval (QCProgram preps body) = mapM_ eval preps >> evalSeq body
 eval (QCPreparation n name) = updateState $ \s -> tensorQBit s name $ castFromInt $ toColMatrix $ qbitFromNumber n
 eval _ = error "Not implemented: eval"
 
@@ -86,26 +86,26 @@ operate op = updateState $ \s -> s { qbits = op <> qbits s } -- flipped
 evalSeq :: [QC] -> EvalT ()
 evalSeq [] = return ()
 evalSeq ((QCOperation names qc):qcs) = evalOperator names qc >>= operate >> evalSeq qcs
-evalSeq (gate@(QCGate name _ _):qcs) = local (addGate name gate) $ evalSeq qcs
-evalSeq ((QCIf conditions body):qcs) = evalIf conditions body >> evalSeq qcs
+evalSeq (circuit@(QCCircuit name _ _):qcs) = local (addGate name circuit) $ evalSeq qcs
+evalSeq ((QCControl conditions body):qcs) = evalControl conditions body >> evalSeq qcs
 evalSeq (qc:_) = error $ "Not implemented: evalSeq for " ++ show qc
 
 -- evaluates an if statement and only that
 -- fails when the variables in the conditions occur in the body
 -- otherwise, it compiles the if statement to an operator and applies it
-evalIf :: [QC] -> [QC] -> EvalT ()
-evalIf conditions body = do
+evalControl :: [QC] -> [QC] -> EvalT ()
+evalControl conditions body = do
   let vs = concatMap variables conditions
   let vs' = concatMap variables body
   if vs `someOccursIn` vs'
     then throwError "Variables in if condition must not occur in body"
-    else compileIf conditions body >>= operate
+    else compileControl conditions body >>= operate
 
 -- returns the variables present in an if-statement
 -- NOTE: circuits and gates are not allowed inside if-statements
 -- so we don't need to check for them
 variables :: QC -> [Name]
-variables (QCIf conditions body) = concatMap variables conditions ++ concatMap variables body
+variables (QCControl conditions body) = concatMap variables conditions ++ concatMap variables body
 variables (QCVariable name) = [name]
 variables (QCNegatedVariable name) = [name]
 variables (QCOperation names _) = names
@@ -116,9 +116,9 @@ someOccursIn :: [Name] -> [Name] -> Bool
 someOccursIn [] _ = False
 someOccursIn (x:xs) ys = x `elem` ys || xs `someOccursIn` ys
 
--- to compile an if statement, we need to move the condition qbits
--- to the front and then compile the body of the if statement
--- with a modified context (removing the qbits used as conditions)
+-- to compile a ctrl statement, we need to move the condition qbits
+-- to the front and then compile the body with a modified context
+-- (removing the conditions qbits)
 --
 -- finally we apply the operator conditionally
 -- checking base-by-base if the conditions match, and use a column
@@ -129,8 +129,8 @@ someOccursIn (x:xs) ys = x `elem` ys || xs `someOccursIn` ys
 --
 -- where H is the compiled body, and I is the identity with
 -- corresponding dimensions
-compileIf :: [QC] -> [QC] -> EvalT Operator
-compileIf conditions body = do
+compileControl :: [QC] -> [QC] -> EvalT Operator
+compileControl conditions body = do
   s <- get
 
   let vs = concatMap variables conditions
@@ -193,8 +193,8 @@ evalOperator _ QCY = return $                fromRowToCol $ RowMatrix 2 2 [0, 0 
 evalOperator _ QCZ = return $  castFromInt $ fromRowToCol $ RowMatrix 2 2 [1, 0, 0, -1]
 evalOperator _ QCH = return $ castFromReal $ fromRowToCol $ RowMatrix 2 2 [1 / sqrt 2, 1 / sqrt 2, 1 / sqrt 2, -1 / sqrt 2]
 
-evalOperator _ (QCGate _ args body) = useContext args $ compileOperator args body
-evalOperator names (QCIf conditions body) = useContext names $ compileIf conditions body
+evalOperator _ (QCCircuit _ args body) = useContext args $ compileOperator args body
+evalOperator names (QCControl conditions body) = useContext names $ compileControl conditions body
 
 evalOperator _ qc = error $ "Not implemented: evalOperator for " ++ show qc
 
@@ -239,7 +239,7 @@ mismatch = throwError "Qbit/Operator mismatch"
 
 -- number of arguments of any gate in the language, even user-defined ones
 arguments :: QC -> Int
-arguments (QCGate _ names _) = length names
+arguments (QCCircuit _ names _) = length names
 arguments QCI = 1
 arguments QCX = 1
 arguments QCY = 1
