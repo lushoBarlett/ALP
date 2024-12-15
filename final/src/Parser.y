@@ -1,6 +1,6 @@
 {
 module Parser where
-import Common
+import AST(QC(..), AngleExpr(..))
 import Data.Char
 }
 
@@ -10,101 +10,71 @@ import Data.Char
 %monad { E } { thenE } { returnE }
 
 %token
-  INT  { TokenInt $$ }
-  VAR  { TokenVar $$ }
-  '|'  { TokenIdentity }
-  '->' { TokenArrow }
   '('  { TokenLParen }
   ')'  { TokenRParen }
+  ';'  { TokenSemicolon }
+  '|'  { TokenPipe }
   '{'  { TokenLBrace }
   '}'  { TokenRBrace }
-  ','  { TokenComma }
-  ';'  { TokenSemicolon }
-  '~'  { TokenNegation }
-  PREP { TokenPrepare }
-  CIRC { TokenCircuit }
+  SKIP { TokenSkip }
+  RX   { TokenRx }
+  RY   { TokenRy }
+  RZ   { TokenRz }
+  SWAP { TokenSwap }
   CTRL { TokenControl }
+  '+'  { TokenPlus }
+  '-'  { TokenMinus }
+  '*'  { TokenProd }
+  '/'  { TokenDiv }
+  PI   { TokenPi }
+  FLit { TokenNumber $$ }
 
-%left "->"
+%left ';'
+%left '|'
+%left "+" "-"
+%left "*" "/"
 
 %%
 
-Program :: { QC }
-Program : PREP '(' PreparationList ')' Body { QCProgram $3 $5 }
+Q :: { QC }
+Q : '(' Q ')' { $2 }
+  | SKIP { QCSkip }
+  | RX '(' AngleExpr ')' { QCRx $3 }
+  | RY '(' AngleExpr ')' { QCRy $3 }
+  | RZ '(' AngleExpr ')' { QCRz $3 }
+  | SWAP { QCSwap }
+  | CTRL '{' Q '}' { QCControl $3 }
+  | Q ';' Q { QCSeq $1 $3 }
+  | Q '|' Q { QCPar $1 $3 }
 
-PreparationList :: { [QC] }
-PreparationList : {- empty -} { [] }
-PreparationList : Preparation { [$1] }
-PreparationList : Preparation ',' { [$1] } -- optional trailing comma
-PreparationList : Preparation ',' PreparationList { $1 : $3 }
-
-Preparation :: { QC }
-Preparation : INT '->' VAR { QCPreparation $1 $3 }
-
-Body :: { [QC] }
-Body : '{' Statements '}' { $2 }
-
-Statements :: { [QC] }
-Statements : {- empty -} { [] }
-Statements : Statement ';' Statements { $1 : $3 }
-
-Statement : Definition { $1 }
-          | Operation  { $1 }
-          | Control    { $1 }
-
-Definition :: { QC }
-Definition : CIRC ArgumentList '->' VAR Body { QCCircuit $4 $2 $5 }
-
-Operation :: { QC }
-Operation : ArgumentList '->' Chain { QCOperation $1 $3 }
-
-ArgumentList :: { [String] }
-ArgumentList : VAR { [$1] }
-ArgumentList : VAR ',' { [$1] } -- optional trailing comma
-ArgumentList : VAR ',' ArgumentList { $1 : $3 }
-
-Control :: { QC }
-Control : CTRL ControlList Body { QCControl $2 $3 }
-
-ControlList :: { [QC] }
-ControlList : {- empty -} { [] }
-ControlList : ControlCondition { [$1] }
-ControlList : ControlCondition ',' { [$1] } -- optional trailing comma
-ControlList : ControlCondition ',' ControlList { $1 : $3 }
-
-ControlCondition :: { QC }
-ControlCondition : VAR { QCVariable $1 }
-ControlCondition : '~' VAR { QCNegatedVariable $2 }
-
-Chain :: { QC }
-Chain : Tensor           { QCTensors $1 }
-Chain : Chain '->' Chain { QCArrow $1 $3 }
-
-Tensor :: { [QC] }
-Tensor : Operator        { [$1] }
-Tensor : Operator Tensor { $1 : $2 }
-
-Operator :: { QC }
-Operator : VAR { QCVariable $1 }
-         | '|' { QCVariable "I" }
-
+AngleExpr : PI { AnglePi }
+          | FLit { AngleConst $1 }
+          | '-' AngleExpr { AngleNeg $2 }
+          | AngleExpr '+' AngleExpr { $1 `AngleAdd` $3 }
+          | AngleExpr '-' AngleExpr { $1 `AngleSub` $3 }
+          | AngleExpr '*' AngleExpr { $1 `AngleMul` $3 }
+          | AngleExpr '/' AngleExpr { $1 `AngleDiv` $3 }
+          | '(' AngleExpr ')' { AngleParen $2 }
 {
 data Token
-  = TokenInt Int
-  | TokenVar String
-  | TokenEquals
-  | TokenIdentity
-  | TokenArrow
-  | TokenLParen
+  = TokenLParen
   | TokenRParen
+  | TokenSemicolon
+  | TokenPipe
   | TokenLBrace
   | TokenRBrace
-  | TokenComma
-  | TokenSemicolon
-  | TokenNegation
-  | TokenPrepare
-  | TokenCircuit
+  | TokenSkip
+  | TokenRx
+  | TokenRy
+  | TokenRz
+  | TokenSwap
   | TokenControl
+  | TokenPlus
+  | TokenMinus
+  | TokenProd
+  | TokenDiv
+  | TokenPi
+  | TokenNumber Double
   deriving Show
 
 parseError :: [Token] -> E a
@@ -134,30 +104,33 @@ catchE m k =
 
 lexer :: String -> [Token]
 lexer [] = []
-lexer (c:cs)
-  | isSpace c = lexer cs
-  | isAlpha c = lexVar (c:cs)
-  | isDigit c = lexNum (c:cs)
-lexer ('=':cs) = TokenEquals : lexer cs
-lexer ('|':cs) = TokenIdentity : lexer cs
-lexer ('-':'>':cs) = TokenArrow : lexer cs
 lexer ('(':cs) = TokenLParen : lexer cs
 lexer (')':cs) = TokenRParen : lexer cs
+lexer (';':cs) = TokenSemicolon : lexer cs
+lexer ('|':cs) = TokenPipe : lexer cs
 lexer ('{':cs) = TokenLBrace : lexer cs
 lexer ('}':cs) = TokenRBrace : lexer cs
-lexer (',':cs) = TokenComma : lexer cs
-lexer (';':cs) = TokenSemicolon : lexer cs
-lexer ('~':cs) = TokenNegation : lexer cs
+lexer ('+':cs) = TokenPlus : lexer cs
+lexer ('-':cs) = TokenMinus : lexer cs
+lexer ('*':cs) = TokenProd : lexer cs
+lexer ('/':cs) = TokenDiv : lexer cs
+lexer ('π':cs) = TokenPi : lexer cs
+lexer (c:cs) | isSpace c = lexer cs
+lexer (c:cs) | isDigit c = lexNum (c:cs)
+lexer cs
+  | "skip" `isPrefixOf` cs = TokenSkip : lexer (drop 4 cs)
+  | "Rx" `isPrefixOf` cs = TokenRx : lexer (drop 2 cs)
+  | "Ry" `isPrefixOf` cs = TokenRy : lexer (drop 2 cs)
+  | "Rz" `isPrefixOf` cs = TokenRz : lexer (drop 2 cs)
+  | "swap" `isPrefixOf` cs = TokenSwap : lexer (drop 4 cs)
+  | "ctrl" `isPrefixOf` cs = TokenControl : lexer (drop 4 cs)
+  | "pi" `isPrefixOf` cs = TokenPi : lexer (drop 2 cs)
+lexer (c:cs) = error ("lexer: unexpected character " ++ [c])
 
-lexVar cs =
-  case span isAlpha cs of
-    ("prepare",rest) -> TokenPrepare : lexer rest
-    ("circuit",rest) -> TokenCircuit : lexer rest
-    ("ctrl",rest) -> TokenControl : lexer rest
-    (var,rest) -> TokenVar var : lexer rest
+lexNum cs = TokenNumber (read num) : lexer rest
+  where (num, rest) = span (\c -> isDigit c || c == '.') cs
 
-lexNum cs =
-  case span isDigit cs of
-    (num,rest) -> TokenInt (read num) : lexer rest
+isPrefixOf :: Eq a => [a] -> [a] -> Bool
+isPrefixOf l1 l2 = and $ zipWith (==) l1 l2
 
 }

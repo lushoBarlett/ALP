@@ -1,15 +1,14 @@
-prepare (0 -> a, 0 -> b) {
+Rx(pi) | skip;
 
-	circuit x,y -> CNOT {
-		ctrl x {
-			y -> X;
-		};
-	};
+(Ry(π / 2); Rx(π)) | skip;
 
-	a -> X -> H;
-	b -> H;
+skip | (Ry(π / 2); Rx(π));
 
-	b,a -> CNOT;
+swap;
 
-	a,b -> H H;
-}
+ctrl {
+	Rx(π)
+};
+
+Ry(π / 2) | Ry(π / 2);
+Rx(π) | Rx(π)

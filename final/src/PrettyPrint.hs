@@ -1,68 +1,52 @@
-module PrettyPrint (prettyPrint) where
+module PrettyPrint(pp, ppState) where
 
-import Common (QC(..))
-
--- pretty prints a list of sequential statements
-ppbody :: Int -> [QC] -> String
-ppbody tabs = foldMap (\b -> pp (tabs + 1) b ++ ";" ++ endl)
-
--- pretty prints the preparation of qubits
-pppreps :: Int -> [QC] -> String
-pppreps tabs = foldMap (\p -> pp tabs p ++ ", ")
-
--- pretty prints the arguments of a gate
-ppargs :: [String] -> String
-ppargs = foldMap (++ ", ")
+import           AST          (QC (..), AngleExpr (..))
+import           Data.Complex (Complex ((:+)))
+import           Matrix       (ColMatrix (cmAsList))
+import           State        (State)
 
 -- adds parentheses around a string
 withParens :: String -> String
 withParens s = "(" ++ s ++ ")"
 
--- adds braces around a string, in C-like style
-withBraces :: Int -> String -> String
-withBraces tabs s = "{" ++ endl ++ s ++ repeatTabs tabs ++ "}"
-
--- adds spaces around a string
-withSpaces :: String -> String
-withSpaces s = " " ++ s ++ " "
-
--- standard arrow
-arrow :: String
-arrow = " -> "
-
--- standard newline
-endl :: String
-endl = "\n"
+-- adds braces with newlines around a string
+withBraces :: String -> String
+withBraces s = "{\n" ++ s ++ "\n}"
 
 -- repeats tabs a number of times
 repeatTabs :: Int -> String
 repeatTabs = flip replicate '\t'
 
--- pretty prints a tensor product, putting spaces between the elements
-pptensor :: [QC] -> String
-pptensor = foldMap (\b -> pp 0 b ++ " ")
-
--- wrapper for pretty printing a body with braces
-braceBody :: Int -> [QC] -> String
-braceBody tabs body = withBraces tabs (ppbody tabs body)
-
 -- helper function for pretty printing that takes care of the indentation
-pp :: Int -> QC -> String
-pp tabs (QCProgram preps body) = repeatTabs tabs ++ "prepare " ++ withSpaces (withParens (pppreps tabs preps)) ++ braceBody tabs body
-pp _    (QCPreparation n name) = show n ++ arrow ++ name
-pp tabs (QCCircuit name args body) = repeatTabs tabs ++ "circuit " ++ ppargs args ++ arrow ++ name ++ withSpaces (braceBody tabs body)
-pp tabs (QCControl conditions body) = repeatTabs tabs ++ "ctrl " ++ ppargs (pp 0 <$> conditions) ++ withSpaces (braceBody tabs body)
-pp tabs (QCOperation qbitnames qc) = repeatTabs tabs ++ ppargs qbitnames ++ arrow ++ pp 0 qc
-pp tabs (QCArrow ops1 ops2) = repeatTabs tabs ++ pp tabs ops1 ++ arrow ++ pp tabs ops2
-pp tabs (QCTensors ops) = repeatTabs tabs ++ pptensor ops
-pp _    (QCVariable name) = name
-pp _    (QCNegatedVariable name) = "~" ++ name
-pp _    QCI = "|"
-pp _    QCX = "X"
-pp _    QCY = "Y"
-pp _    QCZ = "Z"
-pp _    QCH = "H"
+pp' :: QC -> Int -> String
+pp' QCSkip        tabs = repeatTabs tabs ++ "skip"
+pp' (QCRx a)      tabs = repeatTabs tabs ++ "Rx" ++ withParens (ppAngle a)
+pp' (QCRy a)      tabs = repeatTabs tabs ++ "Ry" ++ withParens (ppAngle a)
+pp' (QCRz a)      tabs = repeatTabs tabs ++ "Rz" ++ withParens (ppAngle a)
+pp' QCSwap        tabs = repeatTabs tabs ++ "swap"
+pp' (QCSeq a b)   tabs = pp' a tabs ++ ";\n" ++ pp' b tabs
+pp' (QCPar a b)      _ = ppinline a ++ " | " ++ ppinline b
+pp' (QCControl a) tabs = "ctrl " ++ withBraces (pp' a (tabs + 1))
+
+ppinline :: QC -> String
+ppinline (QCSeq a b) = withParens $ pp' a 0 ++ "; " ++ pp' b 0
+ppinline ast = pp' ast 0
 
 -- main pretty-printing function
-prettyPrint :: QC -> String
-prettyPrint = pp 0
+pp :: QC -> String
+pp q = pp' q 0
+
+-- pretty-prints the state
+ppState :: State -> String
+ppState state = concatMap ppcomplex $ cmAsList state
+  where ppcomplex (r :+ i) = concat [show r, " + ", show i, "i\n"]
+
+ppAngle :: AngleExpr -> String
+ppAngle (AngleConst a) = if (floor a :: Int) == ceiling a then show (round a :: Int) else show a
+ppAngle AnglePi        = "π"
+ppAngle (AngleNeg a)   = "-" ++ ppAngle a
+ppAngle (AngleAdd a b) = ppAngle a ++ " + " ++ ppAngle b
+ppAngle (AngleSub a b) = ppAngle a ++ " - " ++ ppAngle b
+ppAngle (AngleMul a b) = ppAngle a ++ " * " ++ ppAngle b
+ppAngle (AngleDiv a b) = ppAngle a ++ " / " ++ ppAngle b
+ppAngle (AngleParen a) = withParens $ ppAngle a

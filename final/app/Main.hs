@@ -1,32 +1,53 @@
 module Main (main) where
 
-import Parser (qcparser, lexer, E(..))
-import Common (showState)
-import PrettyPrint (prettyPrint)
-import Eval (eval, defaultRunEnv, defaultState, run)
-import System.Console.Haskeline (InputT, runInputT, defaultSettings, getInputLine, outputStrLn)
-import Control.Monad.Trans (MonadTrans(lift))
+import           Control.Monad            (forM_)
+import           Control.Monad.Except     (runExcept)
+import           Control.Monad.Trans      (MonadTrans (lift))
+import           Data.Maybe               (listToMaybe)
+import           Eval                     (eval)
+import           Matrix                   (Matrix (cols))
+import           Parser                   (E (..), lexer, qcparser)
+import           PrettyPrint              (pp, ppState)
+import           State                    (Operator)
+import           System.Console.Haskeline (InputT, defaultSettings,
+                                           getInputLine, outputStrLn, runInputT)
+import           Typecheck                (tc)
+import           QBit                     (colMatrixFromNumber)
+
+maybeRead :: Read a => String -> Maybe a
+maybeRead = fmap fst . listToMaybe . reads
 
 -- parses and prints the given string
-printAST :: String -> IO ()
-printAST s = do
-  let qc = qcparser $ lexer s
-  case qc of
-    Failed err -> putStrLn err
-    Ok ast -> putStrLn $ prettyPrint ast
+printAST :: String -> InputT IO ()
+printAST s =
+  case qcparser $ lexer s of
+    Failed err -> outputStrLn err
+    Ok ast     -> outputStrLn $ pp ast
 
 -- parses and evaluates the given string
-parseAndEval :: String -> IO ()
-parseAndEval s = do
-  let qc = qcparser $ lexer s
-  case qc of
-    Failed err -> putStrLn err
+parseAndEval :: String -> InputT IO ()
+parseAndEval s =
+  case qcparser $ lexer s of
+    Failed err -> outputStrLn err
     Ok ast -> do
-      let evalRes = eval ast
-      ran <- run evalRes defaultRunEnv defaultState
-      case ran of
-        Left err -> print err
-        Right ((), state) -> putStrLn $ showState state
+      let tcd = runExcept $ tc ast
+      either outputStrLn (\tast -> do
+        let op = runExcept $ eval tast
+        either outputStrLn loopStateOrQuit op) tcd
+
+loopStateOrQuit :: Operator -> InputT IO ()
+loopStateOrQuit op = do
+  input <- getInputLine "(integer or :q) λ "
+  forM_ input stateOrQuit
+    where
+      stateOrQuit ":q" = return ()
+      stateOrQuit input = case maybeRead input :: Maybe Int of
+        Nothing -> outputStrLn "Expected an integer or :q" >> loopStateOrQuit op
+        Just n  -> (outputStrLn . ppState) (op <> initstate n) >> loopStateOrQuit op
+
+      initstate n = colMatrixFromNumber n $ opdimension
+
+      opdimension = ceiling (logBase 2 $ fromIntegral $ cols op :: Double) :: Int
 
 -- main function
 main :: IO ()
@@ -36,18 +57,16 @@ main = runInputT defaultSettings (intro >> loop)
 intro :: InputT IO ()
 intro = outputStrLn $
   "Welcome to the Quantum Circuit Language Interpreter!\n" ++
-  "CLI is not yet supported, but you can execute files and print their ASTs.\n" ++
+  "CLI is not yet supported, but you can execute files and pretty print them.\n" ++
   "Type :f <file> to execute a file\n" ++
-  "Type :p <file> to print its AST (not quite pretty-printing)\n" ++
+  "Type :p <file> to pretty print the program\n" ++
   "Type :q to quit\n"
 
 -- main loop of the app
 loop :: InputT IO ()
 loop = do
   input <- getInputLine "λ "
-  case input of
-    Nothing -> return ()
-    Just s -> executeCommand s
+  forM_ input executeCommand
 
 -- command interpreter
 executeCommand :: String -> InputT IO ()
@@ -60,6 +79,6 @@ executeCommand s =
       ":q" -> return ()
       _ -> outputStrLn "Unknown command"
 
-fileOrDeath :: [String] -> (String -> IO ()) -> InputT IO ()
+fileOrDeath :: [String] -> (String -> InputT IO ()) -> InputT IO ()
 fileOrDeath [] _ = outputStrLn "No file given"
-fileOrDeath (f : _) m = lift $ readFile f >>= m
+fileOrDeath (f : _) m = lift (readFile f) >>= m
